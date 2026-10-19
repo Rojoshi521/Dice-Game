@@ -117,11 +117,15 @@ function love.load(args)
         if a == "--bazaar" then require("run").bazaar = true end   -- the next shop is a mystery stop's bazaar
         if a == "--glory" then glory = tonumber(args[i + 1]) end   -- glory to spend in the test save
         if a == "--act" then act = tonumber(args[i + 1]) end   -- campaign chapter; 2 also opens it in the test save   -- campaign classes for the test save, e.g. militia,knight
+        if a == "--loc" then LOC = args[i + 1] end   -- fight every duel at this location; "none" for no location rule
+        if a == "--seed" then SEED = tonumber(args[i + 1]) end   -- repeatable test runs
+        if a == "--speed" then AUTO_SPEED = tonumber(args[i + 1]) end   -- autoplay speed (default 5)
+        if a == "--noshots" then NOSHOTS = true end   -- autoplay without its screenshots, for big batches
     end
     -- runs launched in the same second can share a table address, so test runs also mix in their save name
     local salt = 0
     for c in (SAVEFILE or ""):gmatch(".") do salt = (salt * 31 + c:byte()) % 1000003 end
-    math.randomseed(os.time() + tonumber(tostring({}):match("(%x+)$"), 16) % 1000003 + salt * 7919)
+    math.randomseed(SEED or (os.time() + tonumber(tostring({}):match("(%x+)$"), 16) % 1000003 + salt * 7919))
     love.graphics.setDefaultFilter("nearest", "nearest")
     bgShader = love.graphics.newShader(BG_SHADER)
     crtShader = love.graphics.newShader(CRT_SHADER)
@@ -219,7 +223,7 @@ local function autoplay(dt)
             scene.current.mousepressed(0, 0)
         end
     end
-    if shotT > 4 then
+    if shotT > 4 and not NOSHOTS then
         shotT, shotN = 0, shotN + 1
         love.graphics.captureScreenshot(string.format("auto_%02d.png", shotN))
     end

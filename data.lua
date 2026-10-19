@@ -335,28 +335,33 @@ data.START_HP = 45
 data.MAX_REROLLS = 2
 data.STALL_TURN = 15   -- past this turn a rival grows impatient: +1 attack (before scaling) every turn after
 
--- Every campaign duel is fought somewhere, and each place bends the rules a little (keyed by backdrop)
+-- Every campaign duel is fought somewhere, and each place bends the rules a little (keyed by backdrop).
+-- Rules that take or give nerve to both sides use a share of max nerve, since rivals have far more of it.
 data.LOCATIONS = {
-    grassland = {name = "Grassland", rule = "Fair Weather", desc = "+1 reroll every turn.", rerolls = 1},
-    hills = {name = "Hills", rule = "High Ground", desc = "STRAIGHTS get +2 mult.", straightMult = 2},
-    forest = {name = "Forest", rule = "Undergrowth", desc = "You and the rival both gain +3 block every turn.",
-        block = 3, rivalBlock = 3},
-    swamp = {name = "Swamp", rule = "Sucking Mud", desc = "-1 reroll every turn, but a PAIR gets +1 mult.",
-        rerolls = -1, pairMult = 1},
-    desert = {name = "Desert", rule = "Scorching Sun", desc = "You and the rival both lose 2 nerve every turn.",
-        burn = 2, rivalBurn = 2},
-    trail = {name = "The Road", rule = "Long Road", desc = "Your attacks get +1 for every turn the duel has lasted.",
-        atkPerTurn = 1},
+    grassland = {name = "Grassland", rule = "Fair Weather", desc = "+2 rerolls every turn.", rerolls = 2},
+    hills = {name = "Hills", rule = "High Ground", desc = "RUNS, SCALES and GRAND SCALES get +3 mult.", straightMult = 3},
+    forest = {name = "Forest", rule = "Undergrowth", desc = "You and the rival both gain +5 block every turn.",
+        block = 5, rivalBlock = 5},
+    swamp = {name = "Swamp", rule = "Sucking Mud", desc = "-1 reroll every turn, but PAIR and TWO PAIR get +2 mult.",
+        rerolls = -1, pairMult = 2},
+    desert = {name = "Desert", rule = "Scorching Sun",
+        desc = "You lose 5% of your max nerve every turn, and the rival loses 4% of its own.",
+        burnPct = 0.05, rivalBurnPct = 0.04},
+    trail = {name = "The Road", rule = "Long Road", desc = "Your attacks get +1 for every 2 turns the duel has lasted.",
+        atkPerTurn = 0.5},
     cave = {name = "Cave", rule = "Close Quarters", desc = "Every attack, yours and the rival's, hits +3 harder.",
         atk = 3, rivalAtk = 3},
-    dungeon = {name = "Dungeon", rule = "Loot Everywhere", desc = "+2 gold every turn you deal damage.", hitGold = 2},
+    dungeon = {name = "Dungeon", rule = "Loot Everywhere",
+        desc = "+4 gold every turn you deal damage, but the rival is 20% harder to stagger.", hitGold = 4, stagger = 1.2},
     ruins = {name = "Ruins", rule = "Ancient Runes", desc = "Every 3rd turn your hand deals x2 attack.", runeEvery = 3},
     graveyard = {name = "Graveyard", rule = "Restless Dead",
-        desc = "The rival heals 3 nerve every turn, but your attacks ignore its block.", rivalHeal = 3, pierce = true},
+        desc = "The rival heals 5% of its max nerve every turn, but your attacks ignore its block.",
+        rivalHealPct = 0.05, pierce = true},
     village = {name = "Village", rule = "Home Crowd", desc = "Heal 3 nerve every turn.", heal = 3},
     tundra = {name = "Tundra", rule = "Bitter Cold", desc = "Lose 1 nerve every turn, but every hand gets +1 mult.",
         burn = 1, mult = 1},
-    city = {name = "City", rule = "Quick Pay", desc = "Win within 4 turns for +5 gold.", fastTurns = 4, fastGold = 5},
+    city = {name = "City", rule = "Quick Pay", desc = "Your first 2 hands get +2 mult. Win within 4 turns for +5 gold.",
+        earlyTurns = 2, earlyMult = 2, fastTurns = 4, fastGold = 5},
     mountain = {name = "Mountain", rule = "Thin Air", desc = "The rival staggers from 25% less.", stagger = 0.75},
 }
 

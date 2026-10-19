@@ -333,14 +333,15 @@ local function evaluate()
     -- the place you're fighting in
     if loc then
         if loc.mult then ev.mult = ev.mult + loc.mult end
-        if loc.pairMult and pat.id == "pair" then ev.mult = ev.mult + loc.pairMult end
+        if loc.pairMult and (pat.id == "pair" or pat.id == "twopair") then ev.mult = ev.mult + loc.pairMult end
         if loc.straightMult and straight then ev.mult = ev.mult + loc.straightMult end
+        if loc.earlyMult and turn <= loc.earlyTurns then ev.mult = ev.mult + loc.earlyMult end
         if loc.runeEvery and turn % loc.runeEvery == 0 then ev.xAtk = ev.xAtk * 2 end
     end
     ev.atk, ev.def = math.max(0, ev.atk), math.max(0, ev.def)
     ev.atkTotal = math.floor(ev.atk * (ev.mult + ev.atkMult) * ev.xAtk)
     ev.defTotal = math.floor(ev.def * (ev.mult + ev.defMult) * ev.xDef)
-    if loc and ev.atkTotal > 0 then ev.atkTotal = ev.atkTotal + (loc.atk or 0) + (loc.atkPerTurn or 0) * turn end
+    if loc and ev.atkTotal > 0 then ev.atkTotal = ev.atkTotal + (loc.atk or 0) + math.floor((loc.atkPerTurn or 0) * turn) end
     if ev.thorns then ev.thorns = math.floor(ev.defTotal / 2) + ev.thorns end
     return ev
 end
@@ -956,16 +957,19 @@ local function weather()
         run.hp = math.min(run.maxHp, run.hp + loc.heal)
         fx.text("+" .. (run.hp - before), HP_POS.x, HP_POS.y, PAL.green, "big")
     end
-    if loc.burn then
+    -- shares of max nerve round to at least 1
+    local function share(pct, of) return math.max(1, math.floor(of * pct + 0.5)) end
+    local burn = loc.burn or (loc.burnPct and share(loc.burnPct, run.maxHp))
+    if burn then
         fx.text(loc.rule:upper(), HP_POS.x, HP_POS.y - 14, PAL.gold, "med")
-        hurtPlayer(loc.burn, true)
+        hurtPlayer(burn, true)
     end
-    if loc.rivalHeal and rival.hp < rival.maxHp then
+    if loc.rivalHealPct and rival.hp < rival.maxHp then
         local before = rival.hp
-        rival.hp = math.min(rival.maxHp, rival.hp + loc.rivalHeal)
+        rival.hp = math.min(rival.maxHp, rival.hp + share(loc.rivalHealPct, rival.maxHp))
         fx.text("+" .. (rival.hp - before), RIVAL_HP.x + RIVAL_HP.w / 2, RIVAL_HP.y - 8, PAL.green, "big")
     end
-    if loc.rivalBurn then damageRival(loc.rivalBurn, true) end
+    if loc.rivalBurnPct then damageRival(share(loc.rivalBurnPct, rival.maxHp), true) end
     if rival.dead then
         win()
         return true
@@ -1067,29 +1071,65 @@ function duel.keypressed(key)
     end
 end
 
--- Autoplay for testing: keep dice that pair up, reroll the rest, block when a signature is coming
+-- How much a hand is worth to autoplay: damage that gets through his guard, block you'll actually use,
+-- and a little for the rest. Finishing him or staggering him during a tell is worth a lot.
+local function handValue(ev)
+    local guard = (ev.shatter and 0 or math.max(0, rival.block - ev.sunder))
+    if run.hasCharm("axe") or (loc and loc.pierce) then guard = 0 end
+    local landed = math.max(0, ev.atkTotal - guard)
+    local v = math.min(landed, rival.hp) + math.min(ev.defTotal, math.max(0, rivalAttack() - block))
+    v = v + math.min(ev.heal, run.maxHp - run.hp) * 0.8 + ev.gold * 0.2 + (ev.poison + ev.bleed) * 1.5
+    if landed >= rival.hp then v = v + 100 end
+    if isTell() and ev.atkTotal + ev.daze >= rival.stagger then v = v + 15 end
+    return v
+end
+
+local AUTO_SAMPLES = 24
+
+-- Tries rerolling every set of free dice a few dozen times and returns the set worth the most on
+-- average, or nil when keeping the hand is best
+local function autoRerollSet()
+    local free = {}
+    for _, d in ipairs(mine) do
+        if not d.locked and not d.fixed then free[#free + 1] = d end
+    end
+    local best, bestSet = handValue(evaluate()) + 0.5, nil
+    for mask = 1, 2 ^ #free - 1 do
+        local set, saved = {}, {}
+        for i, d in ipairs(free) do
+            if math.floor(mask / 2 ^ (i - 1)) % 2 == 1 then set[#set + 1] = d end
+        end
+        local total = 0
+        for _ = 1, AUTO_SAMPLES do
+            for k, d in ipairs(set) do
+                saved[k] = saved[k] or d.face
+                -- a rerolled die deals from the faces it has left
+                d.face = (d.left and #d.left > 0) and d.left[math.random(#d.left)] or math.random(#d.faces)
+            end
+            total = total + handValue(evaluate())
+        end
+        for k, d in ipairs(set) do d.face = saved[k] end
+        if total / AUTO_SAMPLES > best then best, bestSet = total / AUTO_SAMPLES, set end
+    end
+    return bestSet
+end
+
+-- Autoplay for testing: reroll whichever dice are expected to improve the hand most, under every rule in play
 function duel.auto()
     if phase == "intro" then return begin() end
     if phase == "choose" then
-        local ev = evaluate()
-        if canReroll() and ev.pat.mult < 3 then
-            local seen = {}
-            for _, d in ipairs(mine) do
-                local f = faceOf(d)
-                local key = f.kind == "wild" and "w" or (f.kind ~= "blank" and f.value)
-                d.held = f.kind == "wild" or (key and seen[key] and true) or false
-                if key then
-                    if seen[key] then seen[key].held = true end
-                    seen[key] = d
-                end
-            end
-            if canReroll() then return reroll() end
+        local set = canReroll() and autoRerollSet()
+        if set then
+            for _, d in ipairs(mine) do d.held = true end
+            for _, d in ipairs(set) do d.held = false end
+            return reroll()
         end
         return resolve()
     end
     if (phase == "won" or phase == "lost") and banner.t > 0.6 then
         print(string.format("AUTO: %s vs %s  nerve %d  gold %d  turns %d  at %s", phase, rival.def.name, run.hp, run.gold,
             turn, loc and loc.name or "-"))
+        print(string.format("AUTO: result %s %s %d %d %d %d %d", phase, run.rival, run.hp, run.maxHp, turn, run.gold, rival.hp))
         local fired = {}
         for id, n in pairs(AUTO_FIRED or {}) do fired[#fired + 1] = id .. "=" .. n end
         print("AUTO: relics " .. table.concat(run.charms, ",") .. "  fired " .. table.concat(fired, ","))
@@ -1109,6 +1149,10 @@ function duel.enter()
     local stop = run.mode == "campaign" and run.stopFor(run.rival)
     if stop and stop.bg then scene.backdrop, scene.dim = stop.bg, 0.3 end
     loc = stop and data.LOCATIONS[stop.bg] or nil
+    if LOC then   -- test runs: --loc
+        loc = data.LOCATIONS[LOC]
+        if loc then scene.backdrop, scene.dim = LOC, 0.3 end
+    end
     time, hpShake, turn, block, rerolls = 0, 0, 0, 0, 0
     score, banner, bubble, hand, introT = nil, nil, nil, nil, 0
     rot, streak = 0, 0
@@ -1395,7 +1439,7 @@ local function drawIntro()
     gfx.print(rival.def.title, FIELD_X + slide, 240, "med", PAL.cream, "center", 300)
     if loc then
         lg.setColor(PAL.dark)
-        lg.rectangle("fill", FIELD_X - 200 + slide, 264, 400, 32)
+        lg.rectangle("fill", FIELD_X - 225 + slide, 264, 450, 32)
         gfx.print(loc.name:upper() .. ": " .. loc.rule:upper(), FIELD_X + slide, 266, "med", PAL.gold, "center", 440)
         gfx.print(loc.desc, FIELD_X + slide, 281, "small", PAL.cream, "center", 440)
     end
