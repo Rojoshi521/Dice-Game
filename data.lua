@@ -331,6 +331,32 @@ end
 data.START_HP = 45
 data.MAX_REROLLS = 2
 data.STALL_TURN = 15   -- past this turn a rival grows impatient: +1 attack (before scaling) every turn after
+
+-- Every campaign duel is fought somewhere, and each place bends the rules a little (keyed by backdrop)
+data.LOCATIONS = {
+    grassland = {name = "Grassland", rule = "Fair Weather", desc = "+1 reroll every turn.", rerolls = 1},
+    hills = {name = "Hills", rule = "High Ground", desc = "STRAIGHTS get +2 mult.", straightMult = 2},
+    forest = {name = "Forest", rule = "Undergrowth", desc = "You and the rival both gain +3 block every turn.",
+        block = 3, rivalBlock = 3},
+    swamp = {name = "Swamp", rule = "Sucking Mud", desc = "-1 reroll every turn, but a PAIR gets +1 mult.",
+        rerolls = -1, pairMult = 1},
+    desert = {name = "Desert", rule = "Scorching Sun", desc = "You and the rival both lose 2 nerve every turn.",
+        burn = 2, rivalBurn = 2},
+    trail = {name = "The Road", rule = "Long Road", desc = "Your attacks get +1 for every turn the duel has lasted.",
+        atkPerTurn = 1},
+    cave = {name = "Cave", rule = "Close Quarters", desc = "Every attack, yours and the rival's, hits +3 harder.",
+        atk = 3, rivalAtk = 3},
+    dungeon = {name = "Dungeon", rule = "Loot Everywhere", desc = "+2 gold every turn you deal damage.", hitGold = 2},
+    ruins = {name = "Ruins", rule = "Ancient Runes", desc = "Every 3rd turn your hand deals x2 attack.", runeEvery = 3},
+    graveyard = {name = "Graveyard", rule = "Restless Dead",
+        desc = "The rival heals 3 nerve every turn, but your attacks ignore its block.", rivalHeal = 3, pierce = true},
+    village = {name = "Village", rule = "Home Crowd", desc = "Heal 3 nerve every turn.", heal = 3},
+    tundra = {name = "Tundra", rule = "Bitter Cold", desc = "Lose 1 nerve every turn, but every hand gets +1 mult.",
+        burn = 1, mult = 1},
+    city = {name = "City", rule = "Quick Pay", desc = "Win within 4 turns for +5 gold.", fastTurns = 4, fastGold = 5},
+    mountain = {name = "Mountain", rule = "Thin Air", desc = "The rival staggers from 25% less.", stagger = 0.75},
+}
+
 -- rivals roll three dice against your five, so their nerve and hits scale up to match
 data.RIVAL_HP_SCALE = 3
 data.RIVAL_POWER = 2.5
@@ -1089,18 +1115,18 @@ data.CAMPAIGN = {
     boss = "vampire",
     -- where each monster is met: its story card and battle backdrop
     stops = {
-        goblin = {bg = "trail", title = "THE MILESTONE",
+        goblin = {bg = "grassland", title = "THE MILESTONE",
             story = "A goblin squats by the milestone, shuffling cards it clearly didn't come by honestly. "
                 .. "Millbrook's grain sacks are piled up behind it."},
         slime = {bg = "swamp", title = "THE DITCH",
             story = "Something in the roadside ditch is wobbling. It has teeth. It also, somehow, has dice."},
-        bandit = {bg = "mountain", title = "THE OLD BRIDGE",
+        bandit = {bg = "hills", title = "THE OLD BRIDGE",
             story = "Past the old bridge, a grinning man steps out of the trees. \"Toll road, friend. "
                 .. "The toll is a game. And your purse.\""},
-        wolf = {bg = "trail", title = "HOWLS AT DUSK",
+        wolf = {bg = "village", title = "HOWLS AT DUSK",
             story = "A grey shape pads out of the dusk, bigger than any wolf has a right to be. "
                 .. "It drops a bone die at your feet and growls."},
-        gnoll = {bg = "mountain", title = "THE RAIDERS' CAMP",
+        gnoll = {bg = "desert", title = "THE RAIDERS' CAMP",
             story = "Cackling from the rocks. A gnoll raider squats on a heap of stolen goods, spear across its "
                 .. "knees. \"Play for it,\" it yips."},
         orc = {bg = "trail", title = "WAR DRUMS",
@@ -1109,45 +1135,45 @@ data.CAMPAIGN = {
         troll = {bg = "swamp", title = "THE MIRE BRIDGE",
             story = "The bridge over the Mire belongs to Mossjaw. Nobody crosses without a game, "
                 .. "and nobody has crossed in years."},
-        ogre = {bg = "cave", title = "THE CAULDRON",
+        ogre = {bg = "mountain", title = "THE CAULDRON",
             story = "The smell hits you first. Bruug the ogre has a cauldron, a cleaver and an empty stomach. "
                 .. "\"Dice first,\" he grunts. \"Then supper.\""},
         lizard = {bg = "swamp", title = "THE REED HUTS",
             story = "Stilted huts rise out of the reeds. A lizardfolk hunter blocks the boardwalk, tapping a "
                 .. "venom-slick spear on the planks."},
-        hag = {bg = "swamp", title = "NETTLE'S COTTAGE",
+        hag = {bg = "forest", title = "NETTLE'S COTTAGE",
             story = "A crooked cottage, a bubbling pot, and an old woman who smiles far too widely. "
                 .. "\"Lost, dearie? Sit. Granny loves a game.\""},
         spider = {bg = "cave", title = "THE SILK HOLLOW",
             story = "Webs thick as rope fill the hollow. Something with too many eyes lowers itself from above, "
                 .. "clicking happily."},
-        darkelf = {bg = "cave", title = "THE UNDERWAY",
+        darkelf = {bg = "dungeon", title = "THE UNDERWAY",
             story = "A shortcut through the tunnels, the locals said. A dark elf waits in the gloom, a knife in "
                 .. "one hand and witchfire in the other."},
-        minotaur = {bg = "ruins", title = "THE LABYRINTH",
+        minotaur = {bg = "dungeon", title = "THE LABYRINTH",
             story = "The road sinks into the ruins of an old labyrinth. Something huge breathes in the dark. "
                 .. "Taurion has guarded these halls for a hundred years."},
         gargoyle = {bg = "ruins", title = "THE BELL TOWER",
             story = "On the ruined bell tower, a statue turns its head toward you. Stone wings unfold with a "
                 .. "grinding crack."},
-        vampire = {bg = "swamp", title = "CASTLE VESPER",
+        vampire = {bg = "graveyard", title = "CASTLE VESPER",
             story = "Castle Vesper looms over the end of the road. In the great hall, a table is set with crimson "
                 .. "dice. The Count smiles. \"Sit. Let us play for everything you love.\""},
     },
     -- one of these story cards shows before each shop or hearth
     places = {
         shop = {
-            {title = "A PEDDLER'S CART",
+            {bg = "grassland", title = "A PEDDLER'S CART",
                 story = "A peddler's cart creaks along the road. \"Trinkets for a brave fool? Everything's for sale.\""},
-            {title = "A TINKER'S WAGON",
+            {bg = "city", title = "A TINKER'S WAGON",
                 story = "A tinker's wagon, hung with pots and odd little trinkets. \"Everything works. Mostly.\""},
         },
         hearth = {
-            {title = "A WAYSIDE SHRINE",
+            {bg = "forest", title = "A WAYSIDE SHRINE",
                 story = "An abandoned shrine with a fire still burning. You rest your aching hands."},
-            {title = "THE SHUTTERED INN",
+            {bg = "village", title = "THE SHUTTERED INN",
                 story = "A roadside inn, shuttered against the night. The innkeeper lets you sit by the fire, for luck."},
-            {title = "A SHEPHERD'S FIRE",
+            {bg = "hills", title = "A SHEPHERD'S FIRE",
                 story = "A shepherd waves you over and shares his bread. The sheep watch you suspiciously."},
         },
     },
@@ -1155,26 +1181,26 @@ data.CAMPAIGN = {
     glory = {duel = 3, elite = 6, boss = 15},
     story = {
         intro = {
-            {title = "MILLBROOK", text = "You were born in Millbrook, a muddy little village at the edge of the "
+            {bg = "village", title = "MILLBROOK", text = "You were born in Millbrook, a muddy little village at the edge of the "
                 .. "Wild Road. You own a pitchfork, a patched coat, and a set of chipped dice that belonged to "
                 .. "your grandmother."},
-            {title = "THE CRIMSON COUNT", text = "This autumn, Count Vesper's creatures came down the road. They "
+            {bg = "graveyard", title = "THE CRIMSON COUNT", text = "This autumn, Count Vesper's creatures came down the road. They "
                 .. "don't raid. They gamble. Every traveller is made to play, and every loser pays: in coin, in "
                 .. "harvest... or in blood."},
-            {title = "A FOOL'S ERRAND", text = "Last night the whole village harvest was wagered away to a goblin "
+            {bg = "village", title = "A FOOL'S ERRAND", text = "Last night the whole village harvest was wagered away to a goblin "
                 .. "with loaded dice. Somebody has to win it back. Nobody else volunteered."},
-            {title = "THE ROAD", text = "Your grandmother always said the dice listen to those who keep rolling. "
+            {bg = "trail", title = "THE ROAD", text = "Your grandmother always said the dice listen to those who keep rolling. "
                 .. "Lose, and you'll limp home to Millbrook. But every monster you beat earns glory, and glory "
                 .. "can make a peasant into something more."},
         },
         defeat = {
-            {title = "BACK TO MILLBROOK", text = "You wake in a hay cart rattling home, bruised and broke. But the "
+            {bg = "village", title = "BACK TO MILLBROOK", text = "You wake in a hay cart rattling home, bruised and broke. But the "
                 .. "road remembers what you did, and so does Millbrook. Spend your glory, and go again."},
         },
         victory = {
-            {title = "THE ROAD IS FREE", text = "Count Vesper crumbles to ash as the sun rises over his tower. The "
+            {bg = "grassland", title = "THE ROAD IS FREE", text = "Count Vesper crumbles to ash as the sun rises over his tower. The "
                 .. "harvest comes home, the Wild Road opens, and Millbrook will tell this story for a hundred years."},
-            {title = "AND YET...", text = "Far beyond the road, in a place with no name, something has noticed "
+            {bg = "tundra", title = "AND YET...", text = "Far beyond the road, in a place with no name, something has noticed "
                 .. "a peasant who never stops rolling."},
         },
     },
@@ -1185,26 +1211,26 @@ local MARCH = {
     name = "THE BLIGHTED MARCH", act = "II", clearLine = "The Blighted March is cleansed.",
     power = 1.25, hpScale = 1.3,
     road = {
-        {kind = "duel", rival = "plague", bg = "swamp", title = "THE QUARANTINE LINE",
+        {kind = "duel", rival = "plague", bg = "city", title = "THE QUARANTINE LINE",
             story = "Past the Wild Road, the land turns grey. A barricade of carts blocks the way, and behind it "
                 .. "stands a figure in a beaked mask. \"No one passes the quarantine,\" he says, \"without a check-up.\""},
-        {kind = "duel", rival = "fungus", bg = "trail", title = "THE ROTWOOD",
+        {kind = "duel", rival = "fungus", bg = "forest", title = "THE ROTWOOD",
             story = "The trees here are soft and spongy, crowned with mushrooms as big as cartwheels. "
                 .. "One of them stands up. It is wearing armour."},
-        {kind = "shop", title = "A GRAVEDIGGER'S BARROW",
+        {kind = "shop", bg = "graveyard", title = "A GRAVEDIGGER'S BARROW",
             story = "A gravedigger leans on his shovel. \"Business is booming. Buy something before you're a customer?\""},
-        {kind = "duel", rival = "ranger", bg = "mountain", title = "THE PALE PASS",
+        {kind = "duel", rival = "ranger", bg = "tundra", title = "THE PALE PASS",
             story = "Hoofbeats echo through the pass, but no horse is breathing. A skeleton rider blocks the trail, "
                 .. "bow already drawn."},
-        {kind = "duel", rival = "wurm", bg = "cave", title = "THE OSSUARY PIT",
+        {kind = "duel", rival = "wurm", bg = "dungeon", title = "THE OSSUARY PIT",
             story = "The tunnels are lined with bones, and the bones are trembling. Something huge is burrowing "
                 .. "toward you."},
-        {kind = "hearth", title = "A HERMIT'S CANDLE",
+        {kind = "hearth", bg = "mountain", title = "A HERMIT'S CANDLE",
             story = "A hermit shares her soup and asks no questions. The candle burns all night."},
         {kind = "elite", rival = "basilisk", bg = "ruins", title = "THE STONE GARDEN",
             story = "A garden of statues: knights, farmers, children, all frozen mid-scream. Among them, something "
                 .. "scaled and rotting uncoils. Don't look, you tell yourself. Don't look."},
-        {kind = "hearth", title = "THE LAST CHAPEL",
+        {kind = "hearth", bg = "graveyard", title = "THE LAST CHAPEL",
             story = "A ruined chapel, its bell long silent. You pray to whatever is still listening."},
         {kind = "boss", rival = "lich", bg = "ruins", title = "THE BONE THRONE",
             story = "At the heart of the March, a crowned skeleton sits on a throne of skulls, a grimoire floating "
@@ -1213,21 +1239,21 @@ local MARCH = {
     glory = {duel = 5, elite = 10, boss = 25},
     story = {
         intro = {
-            {title = "THE BLIGHTED MARCH", text = "With Count Vesper gone, Millbrook's harvest came home. But the seed "
+            {bg = "swamp", title = "THE BLIGHTED MARCH", text = "With Count Vesper gone, Millbrook's harvest came home. But the seed "
                 .. "it sowed came up grey, and the wells began to taste of the grave."},
-            {title = "A WHISPER FROM THE EAST", text = "Beyond the Wild Road lies the Blighted March, where nothing "
+            {bg = "graveyard", title = "A WHISPER FROM THE EAST", text = "Beyond the Wild Road lies the Blighted March, where nothing "
                 .. "that dies stays dead. Its master is Malakar, the Lich King. It was he who sent the Count west."},
-            {title = "THE ROAD GOES ON", text = "The things in the March are older and crueller than anything on the "
+            {bg = "trail", title = "THE ROAD GOES ON", text = "The things in the March are older and crueller than anything on the "
                 .. "Wild Road, and every win there earns more glory. Roll anyway. You always do."},
         },
         defeat = {
-            {title = "BACK TO MILLBROOK", text = "A crow-picked cart drags you out of the March, still breathing. "
+            {bg = "village", title = "BACK TO MILLBROOK", text = "A crow-picked cart drags you out of the March, still breathing. "
                 .. "The blight creeps a little further west. Spend your glory, and go again."},
         },
         victory = {
-            {title = "THE BLIGHT LIFTS", text = "Malakar's phylactery cracks, and a thousand stolen souls rush home. "
+            {bg = "grassland", title = "THE BLIGHT LIFTS", text = "Malakar's phylactery cracks, and a thousand stolen souls rush home. "
                 .. "Green shoots break through the grey earth of the March."},
-            {title = "THE PEASANT OF MILLBROOK", text = "Bards will argue for years about how a peasant with chipped "
+            {bg = "city", title = "THE PEASANT OF MILLBROOK", text = "Bards will argue for years about how a peasant with chipped "
                 .. "dice beat a lich. You know the truth: you just kept rolling."},
         },
     },

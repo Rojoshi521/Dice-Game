@@ -51,11 +51,11 @@ local function mystery(r)
         nextScene = "duel"
     elseif roll < 0.67 then
         run.bazaar = true
-        page = {title = "A HIDDEN BAZAAR", text = "Lanterns in the trees, far from any road: a whole caravan of "
+        page = {title = "A HIDDEN BAZAAR", bg = "forest", text = "Lanterns in the trees, far from any road: a whole caravan of "
             .. "traders, their carts heaped with strange wares. More than any peddler carries."}
         nextScene = "shop"
     else
-        page = {title = "THE DICE SHRINE", text = "A mossy stone shrine with a carved dice-cup. The inscription "
+        page = {title = "THE DICE SHRINE", bg = "ruins", text = "A mossy stone shrine with a carved dice-cup. The inscription "
             .. "reads: ROLL TRUE AND BE BLESSED. ROLL FALSE AND BLEED."}
         nextScene = "trial"
     end

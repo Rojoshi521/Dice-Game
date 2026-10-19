@@ -39,6 +39,7 @@ local rot, streak                      -- the necromancer's curse on you; Hot St
 local lastMod, growth, thorns, bank     -- modifier-die state that outlives a single roll
 local gambled, spareUsed, rerolled      -- once-per-turn modifier faces; whether you rerolled
 local weaken                            -- how much your Weaken face cuts the rival's next hit
+local loc                               -- where the duel is fought (data.LOCATIONS), nil off the campaign road
 local BLANK = {kind = "blank", value = 0}
 
 ---------------------------------------------------------------------------
@@ -329,9 +330,17 @@ local function evaluate()
         ev.def = ev.def + (e.def or 0)
         ev.xAtk, ev.xDef = ev.xAtk * (e.xAtk or 1), ev.xDef * (e.xDef or 1)
     end
+    -- the place you're fighting in
+    if loc then
+        if loc.mult then ev.mult = ev.mult + loc.mult end
+        if loc.pairMult and pat.id == "pair" then ev.mult = ev.mult + loc.pairMult end
+        if loc.straightMult and straight then ev.mult = ev.mult + loc.straightMult end
+        if loc.runeEvery and turn % loc.runeEvery == 0 then ev.xAtk = ev.xAtk * 2 end
+    end
     ev.atk, ev.def = math.max(0, ev.atk), math.max(0, ev.def)
     ev.atkTotal = math.floor(ev.atk * (ev.mult + ev.atkMult) * ev.xAtk)
     ev.defTotal = math.floor(ev.def * (ev.mult + ev.defMult) * ev.xDef)
+    if loc and ev.atkTotal > 0 then ev.atkTotal = ev.atkTotal + (loc.atk or 0) + (loc.atkPerTurn or 0) * turn end
     if ev.thorns then ev.thorns = math.floor(ev.defTotal / 2) + ev.thorns end
     return ev
 end
@@ -454,6 +463,10 @@ local function win()
         run.hp = math.min(run.maxHp, run.hp + winHeal)
         lines[#lines + 1] = "+" .. winHeal .. " nerve"
     end
+    if loc and loc.fastTurns and turn <= loc.fastTurns then
+        run.gold = run.gold + loc.fastGold
+        lines[#lines + 1] = "+" .. loc.fastGold .. " " .. loc.rule:lower()
+    end
     if run.hasCharm("piggy") then
         local interest = math.min(10, math.floor(run.gold / 3))
         run.gold = run.gold + interest
@@ -525,6 +538,7 @@ local function rivalAttack()
     local atk = hand.atk + math.floor(extra * rivalPower)
     if k == "bash" or KINDS[k].bash then atk = atk + rival.block end
     if atk > 0 then atk = math.max(0, atk + math.floor(rival.str * rivalPower) - weaken) end
+    if atk > 0 and loc and loc.rivalAtk then atk = atk + loc.rivalAtk end
     -- a duel that drags on makes the rival impatient, so no one can stall forever
     if turn > data.STALL_TURN then atk = atk + math.floor((turn - data.STALL_TURN) * rivalPower) end
     return atk
@@ -721,12 +735,13 @@ local function resolve()
             sfx.play("block", 0.7)
         end
         local tookBefore = rival.took
-        if ev.atkTotal > 0 then damageRival(ev.atkTotal, run.hasCharm("axe")) end
+        if ev.atkTotal > 0 then damageRival(ev.atkTotal, run.hasCharm("axe") or (loc and loc.pierce)) end
         if run.hasCharm("fang") then
             local suck = math.floor((rival.took - tookBefore) / 2)
             ev.heal = ev.heal + suck
             if AUTO_TEST and suck > 0 then autoFired("fang") end
         end
+        if loc and loc.hitGold and rival.took > tookBefore then ev.gold = ev.gold + loc.hitGold end
         if ev.pick > 0 and rival.took > 0 then
             ev.gold = ev.gold + ev.pick
             fx.text("PICKPOCKET", FIELD_X + 50, PORTRAIT_Y - 30, PAL.gold, "med")
@@ -788,9 +803,10 @@ local function startPlayerTurn()
     phase = "rolling"
     block, bank = bank, 0
     if block > 0 then fx.text("BANK +" .. block, BLOCK_POS.x, BLOCK_POS.y - 10, PAL.blue, "med") end
+    if loc and loc.block then block = block + loc.block end
     gambled, spareUsed, rerolled, weaken = false, false, false, 0
-    rerolls = data.MAX_REROLLS + (run.hasCharm("bones") and 3 or 0) + (run.hero and data.HEROES[run.hero].rerolls or 0)
-        + (run.perks and run.perks.rerolls or 0)
+    rerolls = math.max(0, data.MAX_REROLLS + (run.hasCharm("bones") and 3 or 0) + (run.hero and data.HEROES[run.hero].rerolls or 0)
+        + (run.perks and run.perks.rerolls or 0) + (loc and loc.rerolls or 0))
     if run.hasCharm("pact") and run.hp > 1 then
         local cost = math.min(2, run.hp - 1)
         run.hp = run.hp - cost
@@ -932,12 +948,45 @@ local function rivalLanded()
     fx.after(0.6, playerTurn)
 end
 
+-- The location's toll at the top of each turn; true when it ended the duel
+local function weather()
+    if not loc then return false end
+    if loc.heal and run.hp < run.maxHp then
+        local before = run.hp
+        run.hp = math.min(run.maxHp, run.hp + loc.heal)
+        fx.text("+" .. (run.hp - before), HP_POS.x, HP_POS.y, PAL.green, "big")
+    end
+    if loc.burn then
+        fx.text(loc.rule:upper(), HP_POS.x, HP_POS.y - 14, PAL.gold, "med")
+        hurtPlayer(loc.burn, true)
+    end
+    if loc.rivalHeal and rival.hp < rival.maxHp then
+        local before = rival.hp
+        rival.hp = math.min(rival.maxHp, rival.hp + loc.rivalHeal)
+        fx.text("+" .. (rival.hp - before), RIVAL_HP.x + RIVAL_HP.w / 2, RIVAL_HP.y - 8, PAL.green, "big")
+    end
+    if loc.rivalBurn then damageRival(loc.rivalBurn, true) end
+    if rival.dead then
+        win()
+        return true
+    end
+    if run.hp <= 0 then
+        if not run.hasCharm("phoenix") then
+            lose()
+            return true
+        end
+        rise()
+    end
+    return false
+end
+
 function rivalRoll()
     turn = turn + 1
     if turn == data.STALL_TURN + 1 then
         fx.text("IMPATIENT! +ATK EVERY TURN", FIELD_X, PORTRAIT_Y - 60, PAL.red, "med", {shake = true, life = 2})
     end
-    rival.block, rival.carry = rival.carry, 0
+    if weather() then return end
+    rival.block, rival.carry = rival.carry + (loc and loc.rivalBlock or 0), 0
     rival.took, rival.parried, rival.flicked = 0, 0, false
     if rival.staggered then
         rival.staggered, rival.dizzy = false, true
@@ -1039,7 +1088,8 @@ function duel.auto()
         return resolve()
     end
     if (phase == "won" or phase == "lost") and banner.t > 0.6 then
-        print(string.format("AUTO: %s vs %s  nerve %d  gold %d  turns %d", phase, rival.def.name, run.hp, run.gold, turn))
+        print(string.format("AUTO: %s vs %s  nerve %d  gold %d  turns %d  at %s", phase, rival.def.name, run.hp, run.gold,
+            turn, loc and loc.name or "-"))
         local fired = {}
         for id, n in pairs(AUTO_FIRED or {}) do fired[#fired + 1] = id .. "=" .. n end
         print("AUTO: relics " .. table.concat(run.charms, ",") .. "  fired " .. table.concat(fired, ","))
@@ -1058,6 +1108,7 @@ function duel.enter()
     -- campaign duels are fought out on the road, in the stop's location
     local stop = run.mode == "campaign" and run.stopFor(run.rival)
     if stop and stop.bg then scene.backdrop, scene.dim = stop.bg, 0.3 end
+    loc = stop and data.LOCATIONS[stop.bg] or nil
     time, hpShake, turn, block, rerolls = 0, 0, 0, 0, 0
     score, banner, bubble, hand, introT = nil, nil, nil, nil, 0
     rot, streak = 0, 0
@@ -1072,7 +1123,8 @@ function duel.enter()
         rivalPower, rivalHpScale = rivalPower * k, rivalHpScale * k
     end
     local hp = math.floor(def.hp * rivalHpScale)
-    rival = {def = def, hp = hp, hpShown = hp, maxHp = hp, stagger = math.floor(def.stagger * rivalHpScale * (run.weapon and data.WEAPONS[run.weapon].stagger or 1)),
+    rival = {def = def, hp = hp, hpShown = hp, maxHp = hp, stagger = math.floor(def.stagger * rivalHpScale * (run.weapon and data.WEAPONS[run.weapon].stagger or 1)
+            * (loc and loc.stagger or 1)),
         block = 0, str = 0, patience = 0,
         carry = 0, took = 0, parried = 0, warcry = 0, bones = 0, lastTrick = nil, flicked = false, poison = 0, bleed = 0,
         flash = 0, shake = 0, punch = 0, drop = 0, sc = 0, mood = nil, moodT = 0}
@@ -1316,6 +1368,17 @@ local function drawSidebar()
     if hot then ui.tip = {title = "PATTERNS", desc = data.PATTERN_HELP, color = PAL.gold} end
 end
 
+-- The location's rule in the corner of the table; hover for the details
+local function drawLocation()
+    if not loc then return end
+    local box = {x = 532, y = 318, w = 96, h = 22}
+    gfx.panel(box.x, box.y, box.w, box.h, {0.08, 0.07, 0.09, 0.85}, 4)
+    gfx.print(loc.rule:upper(), box.x + box.w / 2, box.y + 5, "small", PAL.gold, "center", box.w)
+    if gfx.inside(box, scene.mx, scene.my) then
+        ui.tip = {title = loc.name:upper() .. ": " .. loc.rule:upper(), desc = loc.desc, color = PAL.gold}
+    end
+end
+
 -- The fight-card intro: the rival slides in on a banner across the table
 local function drawIntro()
     local a = math.min(1, introT * 3)
@@ -1330,6 +1393,12 @@ local function drawIntro()
     gfx.fancy("VS", FIELD_X - 150, 120, "huge", PAL.red, s * 1.4, -0.15, 2, time)
     gfx.fancy(rival.def.name:upper(), FIELD_X + slide, 222, "big", PAL.gold, s * 1.2, math.sin(time) * 0.02, 1, time)
     gfx.print(rival.def.title, FIELD_X + slide, 240, "med", PAL.cream, "center", 300)
+    if loc then
+        lg.setColor(PAL.dark)
+        lg.rectangle("fill", FIELD_X - 200 + slide, 264, 400, 32)
+        gfx.print(loc.name:upper() .. ": " .. loc.rule:upper(), FIELD_X + slide, 266, "med", PAL.gold, "center", 440)
+        gfx.print(loc.desc, FIELD_X + slide, 281, "small", PAL.cream, "center", 440)
+    end
     ui.bubble(rival.def.quote, FIELD_X + 70, 64, 160, introT)
     if introT > 0.8 then
         gfx.print("click to take a seat", FIELD_X, 296, "med", {1, 1, 1, 0.6 + 0.4 * math.sin(time * 4)},
@@ -1347,6 +1416,7 @@ function duel.draw()
     gfx.print("YOUR HAND", FIELD_X, 228, "small", {1, 1, 1, 0.35}, "center", 100)
     drawMyDice()
     ui.charmRow(CHARM_X, CHARM_Y, charmAnim)
+    drawLocation()
 
     if phase == "choose" or phase == "rolling" then
         buttons.reroll.label = "REROLL"
