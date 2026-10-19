@@ -313,9 +313,12 @@ function data.pattern(pips, n)
         local pat, combo = score(nums)
         return pat, nil, combo
     end
-    -- every wild takes the same value; that is never worse than splitting them
+    -- every wild takes the same value; that is never worse than splitting them.
+    -- Upgraded faces can climb past 6, so wilds try up to one above the highest pip.
+    local top = 6
+    for _, v in ipairs(nums) do top = math.max(top, v + 1) end
     local best, bestV, bestCombo, bestScore
-    for v = 0, 6 do
+    for v = 0, top do
         local t = {unpack(nums)}
         for _ = 1, wilds do t[#t + 1] = v end
         local p, c, s = score(t)
