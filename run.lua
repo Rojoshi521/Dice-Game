@@ -115,7 +115,9 @@ end
 function run.new(mode, act)
     run.mode = mode or "tavern"
     run.act = act or 1
-    run.perks = nil           -- campaign: what Millbrook's upgrades grant at the outfit screen
+    -- what the outfit screen grants before setting out; the campaign's come from Millbrook's upgrades,
+    -- and race and class add to them
+    run.perks = {relics = 1, upgrades = 1, rerolls = 0, draft = true, backstory = true, redraws = 0}
     run.hp, run.maxHp = data.START_HP, data.START_HP
     run.gold = 0
     run.dice = {}
@@ -126,7 +128,7 @@ function run.new(mode, act)
     else run.map = generateMap(run.chapter()) end
     run.row, run.col, run.path = 0, nil, {}
     run.rival = "pip"
-    run.hero, run.class, run.backstory, run.weapon = nil, nil, nil, nil
+    run.race, run.class, run.backstory, run.weapon = nil, nil, nil, nil
 end
 
 -- Takes a relic; some change the run the moment you pick them up

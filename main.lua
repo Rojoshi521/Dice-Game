@@ -94,21 +94,22 @@ local function toCanvas(x, y)
 end
 
 function love.load(args)
-    local start, rival, mod, relics, hero, backstory, mode, unlock, act, glory = "title", nil, nil, nil, nil, nil, nil, nil, nil, nil
+    local start, rival, mod, relics, race, backstory, mode, unlock, act, glory = "title", nil, nil, nil, nil, nil, nil, nil, nil, nil
     for i, a in ipairs(args) do
         if a == "--auto" then AUTO, AUTO_TEST = true, true end   -- AUTO_TEST lets other modules log for test runs
         if a == "--scene" then start = args[i + 1] end
         if a == "--shot" then SHOT = true end
         if a == "--pick" then PICK = true end
+        if a == "--step" then OUTFIT_STEP = args[i + 1] end   -- outfit: open on this step, e.g. weapon
         if a == "--rival" then rival = args[i + 1] end
         if a == "--mod" then mod = args[i + 1] end   -- e.g. power:3,gamble:3,poison:3:3 (kind:value:tier)
         if a == "--relics" then relics = args[i + 1] end   -- e.g. idol,pact,cup
-        if a == "--hero" then hero = args[i + 1] end
+        if a == "--race" then race = args[i + 1] end
         if a == "--backstory" then backstory = args[i + 1] end
         if a == "--weapon" then WEAPON = args[i + 1] end   -- also the only weapon autoplay is offered; "none" for bare hands
         if a == "--savefile" then SAVEFILE = args[i + 1] end   -- keeps parallel test runs' saves apart
         if a == "--oneduel" then ONE_DUEL = true end   -- autoplay quits after its first duel
-        if a == "--class" then CLASS = args[i + 1] end   -- campaign test runs start as this class
+        if a == "--class" then CLASS = args[i + 1] end   -- test runs start as this class: warrior, mage or rogue
         if a == "--row" then ROW = tonumber(args[i + 1]) end   -- the map row a test duel is fought on
         if a == "--ramp" then require("data").CAMPAIGN.ramp = tonumber(args[i + 1]) end   -- try a different Wild Road ramp
         if a == "--campaign" then mode = "campaign" end
@@ -116,7 +117,7 @@ function love.load(args)
         if a == "--unlock" then unlock = args[i + 1] end
         if a == "--bazaar" then require("run").bazaar = true end   -- the next shop is a mystery stop's bazaar
         if a == "--glory" then glory = tonumber(args[i + 1]) end   -- glory to spend in the test save
-        if a == "--act" then act = tonumber(args[i + 1]) end   -- campaign chapter; 2 also opens it in the test save   -- campaign classes for the test save, e.g. militia,knight
+        if a == "--act" then act = tonumber(args[i + 1]) end   -- campaign chapter; 2 also opens it in the test save
         if a == "--loc" then LOC = args[i + 1] end   -- fight every duel at this location; "none" for no location rule
         if a == "--seed" then SEED = tonumber(args[i + 1]) end   -- repeatable test runs
         if a == "--speed" then AUTO_SPEED = tonumber(args[i + 1]) end   -- autoplay speed (default 5)
@@ -140,10 +141,7 @@ function love.load(args)
         -- test runs keep their own campaign save, starting fresh each time
         require("campaign").saveFile = SAVEFILE or "campaign_auto.sav"
         love.filesystem.remove(require("campaign").saveFile)
-        for id in (unlock or ""):gmatch("%a+") do
-            local s = require("campaign").state()
-            if require("data").WEAPONS[id] then s.weapons[id] = true else s.classes[id] = true end
-        end
+        for id in (unlock or ""):gmatch("%a+") do require("campaign").state().weapons[id] = true end   -- weapons, e.g. cannon,aegis
         if act == 2 then require("campaign").state().clears = 1 end
         require("campaign").state().glory = glory or 0
     end
@@ -154,45 +152,29 @@ function love.load(args)
         run.rival = rival or run.rival
         run.row = ROW or run.row
         for id in (relics or ""):gmatch("%a+") do run.addCharm(id) end
-        run.hero, run.backstory = hero, backstory
-        if hero and run.perks then require("data").applyCampaignPick(require("data").HEROES[hero], run) end   -- a peasant's knack
-        if CLASS then
-            -- what the outfit screen would do for this class, its relic and draft picked at random
-            local data = require("data")
-            local c = data.CLASSES[CLASS]
-            run.class = CLASS
-            data.applyCampaignPick(c, run)
-            for _ = 1, c.relics or 0 do
-                local pool = {}
-                for _, id in ipairs(data.CHARM_ORDER) do
-                    if not run.hasCharm(id) then pool[#pool + 1] = id end
-                end
-                run.addCharm(pool[math.random(#pool)])
-            end
-            if c.draft then
-                local pool, faces = data.CARVE_POOL.custom, {}
-                for j = 1, data.DRAFT_PICKS do
-                    local f = pool[math.random(#pool)]
-                    faces[j] = {kind = f.kind, value = f.value}
-                end
-                run.dice[#run.dice].faces = faces
-            end
-        elseif run.perks then
-            require("data").applyCampaignPick(require("data").UNTRAINED, run)
+        -- what the outfit screen would do for this race, class, weapon and background; their extra
+        -- relics and upgrades are picked the way autoplay would
+        local data = require("data")
+        if race then
+            run.race = race
+            data.applyPick(data.RACES[race], run)
         end
+        if CLASS then data.applyClass(CLASS, run) end
         if WEAPON and WEAPON ~= "none" then
             run.weapon = WEAPON
-            require("data").applyWeapon(WEAPON, run.dice, run)
+            data.applyWeapon(WEAPON, run.dice, run)
         end
-        -- the backstory comes after the class and weapon, as on the outfit screen
-        if backstory then
-            local data = require("data")
-            data.applyBackstory(backstory, run.dice)
-            -- the Scholar's free upgrade, spent the way autoplay would on the outfit screen
-            for _ = 1, data.BACKSTORIES[backstory].upgrades or 0 do
-                for _, face in ipairs(run.dice[#run.dice].faces) do
-                    if data.canUpgrade(face) then data.upgrade(face) break end
-                end
+        if backstory and backstory ~= "none" then data.applyBackstory(backstory, run) end
+        for _ = 1, data.trait(run, "relics") do
+            local pool = {}
+            for _, id in ipairs(data.CHARM_ORDER) do
+                if not run.hasCharm(id) then pool[#pool + 1] = id end
+            end
+            run.addCharm(pool[math.random(#pool)])
+        end
+        for _ = 1, data.trait(run, "upgrades") do
+            for _, face in ipairs(run.dice[#run.dice].faces) do
+                if data.canUpgrade(face) then data.upgrade(face) break end
             end
         end
         if mod then

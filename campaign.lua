@@ -10,7 +10,7 @@ local save
 campaign.saveFile = "campaign.sav"   -- not .lua: the save folder would shadow this module. Autoplay uses its own.
 
 local function fresh()
-    return {glory = 0, levels = {}, seenIntro = false, runs = 0, clears = 0, clears2 = 0, seenAct2 = false, wins = 0, beat = {}, classes = {}, weapons = {}}
+    return {glory = 0, levels = {}, seenIntro = false, runs = 0, clears = 0, clears2 = 0, seenAct2 = false, wins = 0, beat = {}, weapons = {}, classes = {}}
 end
 
 -- Writes a save value as Lua source: numbers, strings, booleans and tables of them
@@ -71,59 +71,45 @@ function campaign.earn(n)
     campaign.write()
 end
 
--- A duel won on the road: counts toward the classes' unlocks
-function campaign.won(rivalId)
+-- A duel won on the road by a hero of class cls: counts toward that class's weapon unlocks
+function campaign.won(rivalId, cls)
     local s = campaign.state()
     s.wins = s.wins + 1
     s.beat[rivalId] = true
+    s.classes = s.classes or {}
+    if cls then
+        local c = s.classes[cls] or {wins = 0, beat = {}}
+        s.classes[cls] = c
+        c.wins = c.wins + 1
+        c.beat[rivalId] = true
+    end
     campaign.write()
 end
 
-function campaign.hasClass(id) return campaign.state().classes[id] == true end
-
--- Weapons without an unlock are always on the rack
+-- Weapons without an unlock (each class's first) are always on its rack
 function campaign.hasWeapon(id) return not data.WEAPONS[id].unlock or campaign.state().weapons[id] == true end
 
--- How far along a class's (or weapon's) unlock is, as "2/6", or nil for yes/no unlocks
-function campaign.progress(id, defs)
-    local c, s = (defs or data.CLASSES)[id], campaign.state()
-    if c.wins then return math.min(s.wins, c.wins) .. "/" .. c.wins end
-    if type(c.beat) == "table" and #c.beat > 1 then
-        local n = 0
-        for _, r in ipairs(c.beat) do n = n + (s.beat[r] and 1 or 0) end
-        return n .. "/" .. #c.beat
-    end
-end
-
-local function beatAll(list)
+local function beatAll(beat, list)
     for _, r in ipairs(list) do
-        if not save.beat[r] then return false end
+        if not beat[r] then return false end
     end
     return true
 end
 
--- End of a run: unlocks every class whose condition is now met. Returns story pages announcing them.
+-- End of a run: unlocks every weapon whose condition is now met. Returns story pages announcing them.
 function campaign.checkUnlocks()
     local s, pages = campaign.state(), {}
-    for _, id in ipairs(data.CLASS_ORDER) do
-        local c = data.CLASSES[id]
-        local met = (c.wins and s.wins >= c.wins) or (c.beat and s.beat[c.beat]) or (c.clears and s.clears >= c.clears)
-        if met and not s.classes[id] then
-            s.classes[id] = true
-            pages[#pages + 1] = {title = "A NEW CALLING", art = love.filesystem.getInfo("art/" .. id .. ".png") and id or run.hero,
-                text = "Word of your deeds reaches Millbrook. Peasants can now set out as the " .. c.name:upper()
-                    .. ".\n\n" .. c.perk .. "\n\nChoose it before your next run."}
-        end
-    end
     s.weapons = s.weapons or {}
     for _, id in ipairs(data.WEAPON_ORDER) do
         local w = data.WEAPONS[id]
-        local met = w.unlock and ((w.wins and s.wins >= w.wins) or (w.beat and beatAll(w.beat)))
+        local c = (s.classes or {})[w.class] or {wins = 0, beat = {}}
+        local met = w.unlock and ((w.wins and c.wins >= w.wins) or (w.beat and beatAll(c.beat, w.beat)))
         if met and not s.weapons[id] then
             s.weapons[id] = true
             pages[#pages + 1] = {title = "A NEW WEAPON", art = "wpn_" .. id, artH = math.floor(w.artH * 1.5),
-                text = "Millbrook's smith has heard of your deeds, and forged you a " .. w.name:upper()
-                    .. ".\n\n" .. w.perk .. "\n\nIt hangs on the rack for your next run."}
+                text = "Millbrook's smith has heard of your deeds, and forged a " .. w.name:upper()
+                    .. ".\n\n" .. w.perk .. "\n\nIt hangs on the " .. data.CLASSES[w.class].name:upper()
+                    .. "'s rack for your next run."}
         end
     end
     campaign.write()
@@ -167,7 +153,7 @@ function campaign.newRun(act)
     end
     -- what the outfit screen offers before setting out
     run.perks = {relics = L("heirloom"), upgrades = L("whetstone"), rerolls = L("quick"),
-        draft = L("hedge") > 0, backstory = L("pastlife") > 0}
+        draft = L("hedge") > 0, backstory = true, redraws = L("pastlife")}
 end
 
 -- From the title screen: the prologue the first time, then home to Millbrook

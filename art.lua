@@ -14,11 +14,10 @@ local KEY_TOL = 0.09       -- how far from the backdrop colour still counts as b
 local MASK_STEP = 4        -- the backdrop flood fill runs on every 4th source pixel
 
 -- The source art all shares one crimson accent. Each character gets that red swung to a hue of
--- their own (degrees); ids not listed (gambler, barbarian, brakka, redgrave, bookmaker) keep it.
+-- their own (degrees); ids not listed (barbarian, brakka, redgrave, bookmaker, and the races and classes,
+-- which have their own colours) keep it.
 local RECOLOR = {
-    adventurer = {hue = 120},                       -- green
     scholar    = {hue = 200},                       -- sky blue
-    dicemancer = {hue = 275},                       -- violet
     criminal   = {hue = 180, val = 0.85},           -- dark teal
     pip        = {hue = 22, sat = 0.85, val = 1.25}, -- rust
     marla      = {hue = 155},                       -- card-table felt

@@ -22,14 +22,6 @@ local function cardPos(i)
     return FIELD_X - COL_GAP / 2 + col * COL_GAP - CARD_W / 2, TOP + row * ROW_GAP
 end
 
-local function classY(k) return 128 + k * 20 end
-
-local function overClass(x, y)
-    for k, id in ipairs(data.CLASS_ORDER) do
-        if x >= 12 and x <= 144 and y >= classY(k) - 3 and y < classY(k) + 15 then return id end
-    end
-end
-
 local function overCard(i, x, y)
     local cx, cy = cardPos(i)
     return x >= cx and x <= cx + CARD_W and y >= cy and y <= cy + CARD_H
@@ -116,19 +108,8 @@ function village.draw()
     gfx.print(save.glory .. " glory", cx + 8, 63, "med", PAL.gold, "center", w)
     gfx.print("Runs: " .. save.runs .. "\nCleared: I x" .. save.clears .. ", II x" .. (save.clears2 or 0), cx, 92,
         "small", PAL.grey, "center", w)
-    -- the classes, and what unlocks the ones still locked
-    gfx.print("CLASSES", cx, 124, "med", PAL.cream, "center", w)
-    local hotClass = overClass(scene.mx, scene.my)
-    for k, id in ipairs(data.CLASS_ORDER) do
-        local c, y = data.CLASSES[id], classY(k)
-        local has = campaign.hasClass(id)
-        if hotClass == id then
-            lg.setColor(1, 1, 1, 0.08)
-            lg.rectangle("fill", x + 6, y - 3, w - 12, 18, 3)
-        end
-        gfx.icon(has and c.icon or "lock", x + 18, y + 6, 12, has and c.color or PAL.grey)
-        gfx.print(c.name, x + 30, y, "small", has and c.color or PAL.grey)
-    end
+    gfx.print("Every run, choose a\nrace and a class.\nYour village's gifts\ncome with you.", cx, 150, "small",
+        PAL.grey, "center", w)
     local open2 = campaign.hasAct(2)
     buttons.go2.enabled = open2
     gfx.button(buttons.go, scene.mx, scene.my)
@@ -164,13 +145,7 @@ function village.draw()
         lg.pop()
         if hot then tip = u end
     end
-    local hc = overClass(scene.mx, scene.my)
-    if hc then
-        local c, prog = data.CLASSES[hc], campaign.progress(hc)
-        local text = campaign.hasClass(hc) and (c.name .. ": " .. c.perk)
-            or ("Locked. " .. c.unlock .. (prog and (" (" .. prog .. ")") or "") .. " to unlock the " .. c.name .. ".")
-        gfx.print(text, FIELD_X, 342, "small", campaign.hasClass(hc) and PAL.cream or PAL.grey, "center", 460)
-    elseif gfx.inside(buttons.go, scene.mx, scene.my) then
+    if gfx.inside(buttons.go, scene.mx, scene.my) then
         gfx.print("Chapter I: the Wild Road, to Count Vesper's castle.", FIELD_X, 342, "small", PAL.cream, "center", 460)
     elseif gfx.inside(buttons.go2, scene.mx, scene.my) then
         gfx.print(open2 and "Chapter II: the Blighted March, to the Lich King's throne. More glory per win."

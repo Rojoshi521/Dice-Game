@@ -44,16 +44,6 @@ local LOOKS = {
     mortis = {skin = {0.70, 0.78, 0.68}, hairStyle = "bald", shirt = {0.15, 0.12, 0.18}, collar = {0.40, 0.75, 0.40},
         hood = {0.16, 0.12, 0.20}, beard = "long", hair = {0.25, 0.25, 0.25}, headW = 40, headH = 50,
         glow = {0.40, 1.0, 0.45}},
-    -- the heroes you play as
-    gambler = {skin = {0.92, 0.74, 0.60}, hair = {0.12, 0.10, 0.10}, hairStyle = "short", shirt = {0.55, 0.12, 0.15},
-        collar = {0.95, 0.80, 0.30}, hat = "tophat", hatColor = {0.10, 0.09, 0.12}, beard = "stubble",
-        headW = 42, headH = 48, glow = {1.0, 0.80, 0.30}},
-    adventurer = {skin = {0.86, 0.64, 0.48}, hair = {0.45, 0.28, 0.14}, hairStyle = "long", shirt = {0.28, 0.42, 0.22},
-        collar = {0.60, 0.42, 0.22}, hat = "brim", hatColor = {0.50, 0.34, 0.18}, beard = "full",
-        headW = 44, headH = 48, glow = {0.50, 1.0, 0.50}},
-    dicemancer = {skin = {0.93, 0.80, 0.72}, hair = {0.72, 0.72, 0.84}, hairStyle = "long", shirt = {0.30, 0.16, 0.45},
-        collar = {0.80, 0.55, 1.0}, hood = {0.36, 0.18, 0.52}, hat = "circlet", hatColor = {0.80, 0.55, 1.0},
-        headW = 40, headH = 48, glow = {0.75, 0.45, 1.0}},
 }
 
 local function tint(c, flash, k)

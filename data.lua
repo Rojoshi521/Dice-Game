@@ -389,117 +389,223 @@ data.START_DICE = {
     {role = "custom", faces = {f("power", 3), f("fortify", 3), f("mend", 2), f("spare", 1), f("wild"), f("blank")}},
 }
 
--- Heroes you can play as; each bends one rule of the run
-data.HEROES = {
-    gambler    = {name = "The Gambler",    title = "Never folds",    color = GOLD,
-        perk = "+1 reroll every turn.", rerolls = 1, relics = 1, upgrades = 1},
-    adventurer = {name = "The Adventurer", title = "Pockets full",   color = GREEN,
-        perk = "Starts with an extra relic.", rerolls = 0, relics = 2, upgrades = 1},
-    dicemancer = {name = "The Dicemancer", title = "Speaks to dice", color = PURPLE,
-        perk = "Starts with an extra face upgrade.", rerolls = 0, relics = 1, upgrades = 2},
+-- Every run starts with a race, then a class. Both carry passives:
+--   set up when picked: hp (max nerve), bump (die faces by role), rerolls, relics, upgrades
+--   read during duels (see data.trait): winHeal, block (each turn), mult (every hand), firstStrike
+--   (attack multiplier on the first hand of a duel), rebuke (damage back when a rival hurts you),
+--   luckyBlank (how many times a turn a die landing on a blank rolls again), modBoost (modifier face
+--   numbers count this much better: higher, or lower for kinds where lower is better)
+data.RACES = {
+    human    = {name = "Human", title = "Ambitious and adaptable", color = {0.40, 0.55, 0.85},
+        perk = "Start every run with an extra relic, but -6 max nerve.", relics = 1, hp = -6},
+    dwarf    = {name = "Dwarf", title = "Stubborn as stone", color = {0.80, 0.45, 0.20},
+        perk = "+12 max nerve.", hp = 12},
+    gnome    = {name = "Gnome", title = "Can't stop tinkering", color = {0.30, 0.70, 0.70},
+        perk = "An extra face upgrade at the start of every run.", upgrades = 1},
+    highelf  = {name = "High Elf", title = "Steeped in old magic", color = {0.45, 0.60, 1.00},
+        perk = "Every modifier face's number counts 3 in your favour.", modBoost = 3},
+    woodelf  = {name = "Wood Elf", title = "Never misses twice", color = {0.45, 0.75, 0.35},
+        perk = "+1 reroll every turn.", rerolls = 1},
+    halfling = {name = "Halfling", title = "Luckier than they look", color = {0.90, 0.70, 0.30},
+        perk = "Twice a turn, a die that lands on a blank rolls again.", luckyBlank = 2},
+    goliath  = {name = "Goliath", title = "Born on the mountain", color = {0.65, 0.68, 0.75},
+        perk = "Your red die starts with every face 2 higher.", bump = {red = 2}},
+    tauren   = {name = "Tauren", title = "Endures anything", color = {0.75, 0.55, 0.30},
+        perk = "+5 max nerve. Recover 6 nerve after every win.", hp = 5, winHeal = 6},
+    tiefling = {name = "Tiefling", title = "Infernal blood", color = {0.85, 0.25, 0.30},
+        perk = "Whenever a rival hurts you, it takes 4 damage back.", rebuke = 4},
 }
-data.HERO_ORDER = {"gambler", "adventurer", "dicemancer"}   -- Tavern Run only
+data.RACE_ORDER = {"human", "dwarf", "gnome", "highelf", "woodelf", "halfling", "goliath", "tauren", "tiefling"}
 
--- Campaign heroes: five Millbrook peasants, each with one small knack
-local function peasant(name, title, color, perk, knack)
-    local h = {name = name, title = title, color = color, perk = perk, rerolls = 0, relics = 0, upgrades = 0}
-    for k, v in pairs(knack) do h[k] = v end
-    return h
-end
-data.HEROES.wanderer = peasant("Wanderer", "Knows every road", {0.78, 0.68, 0.30},
-    "Heals 4 nerve after every win.", {winHeal = 4})
-data.HEROES.farmhand = peasant("Farmhand", "Raised on turnips", GREEN, "+8 max nerve.", {hp = 8})
-data.HEROES.haymaker = peasant("Haymaker", "Pitchfork in hand", RED, "Red die faces +1.", {bump = {red = 1}})
-data.HEROES.cooper   = peasant("Cooper", "Built like a barrel", BLUE, "Blue die faces +1.", {bump = {blue = 1}})
-data.HEROES.baker    = peasant("Baker", "Up before dawn", {0.95, 0.62, 0.32},
-    "Modifier blanks become Mend 2.", {bakes = true})
-data.PEASANT_ORDER = {"wanderer", "farmhand", "haymaker", "cooper", "baker"}
-
--- Campaign classes: callings a peasant unlocks by what they've done on the road. Checked at the end
--- of every campaign run; each one stacks on top of the peasant's own knack.
+-- Classes: a passive, a starting modifier die, and the pool of modifier faces you can find (in the
+-- draft and as spoils). Commons appear twice in a pool, so they turn up twice as often.
 data.CLASSES = {
-    militia = {name = "Militia", title = "Drilled for the road", icon = "shield", color = {0.55, 0.70, 0.85},
-        perk = "Mixed and blue dice +1. +10 max nerve.", unlock = "Win 6 duels", wins = 6,
-        hp = 10, bump = {mixed = 1, blue = 1}},
-    knight  = {name = "Hedge Knight", title = "Sworn to Millbrook", icon = "sword", color = GOLD,
-        perk = "+1 reroll every turn. Red and blue dice +2.", unlock = "Defeat Taurion", beat = "minotaur",
-        rerolls = 1, bump = {red = 2, blue = 2}},
-    cunning = {name = "Cunning Folk", title = "Knows the old charms", icon = "star", color = PURPLE,
-        perk = "An extra relic, and draft your modifier die.", unlock = "Clear the Wild Road", clears = 1,
-        relics = 1, draft = true},
-    frog    = {name = "Frog Knight", title = "Sworn to the Mire", icon = "shield", color = {0.55, 0.80, 0.30},
-        perk = "+10 max nerve. Red and blue +2. Heal 4 per win.", unlock = "Defeat the Gullet", beat = "wurm",
-        hp = 10, bump = {red = 2, blue = 2}, winHeal = 4},
-    samurai = {name = "Samurai", title = "The way of the die", icon = "sword", color = {0.40, 0.72, 0.52},
-        perk = "+2 rerolls every turn. Red die +2, mixed dice +1.", unlock = "Defeat Malakar", beat = "lich",
-        rerolls = 2, bump = {red = 2, mixed = 1}},
+    warrior = {name = "Warrior", title = "Steel and stubbornness", icon = "shield", color = {0.90, 0.35, 0.30},
+        perk = "+8 max nerve, and you start every turn with 6 block.", hp = 8, block = 6,
+        die = {f("power", 2), f("fortify", 2), f("berserk", 3), f("mend", 2), f("blank"), f("blank")},
+        pool = {
+            f("power", 3), f("power", 3), f("fortify", 3), f("fortify", 3), f("balance", 2), f("balance", 2),
+            f("mend", 2), f("berserk", 6), f("thorns", 1), f("laststand", 2), f("ram", 2), f("rally", 2),
+            f("sunder", 6), f("shatter", 4), f("growth", 1), f("bank", 2), f("daze", 8), f("leech", 3), f("wind", 5),
+        }},
+    mage    = {name = "Mage", title = "Bends the odds", icon = "star", color = {0.55, 0.45, 0.95},
+        perk = "Every hand you play gets +1 mult.", mult = 1,
+        die = {f("wild"), f("lucky", 2), f("resonance", 2), f("mend", 2), f("blank"), f("blank")},
+        pool = {
+            f("resonance", 4), f("resonance", 4), f("lucky", 2), f("lucky", 2), f("mend", 2), f("spare", 1),
+            f("wild"), f("twin"), f("mirror", 1), f("flip", 2), f("chain", 1), f("ladder", 1), f("roller", 1),
+            f("calm", 1), f("longodds", 2), f("reprise", 1), f("poison", 3), f("cleanse", 3),
+        }},
+    rogue   = {name = "Rogue", title = "Strikes first", icon = "eye", color = {0.40, 0.75, 0.45},
+        perk = "+1 reroll each turn. Your first hand of every duel deals x1.3 attack.", rerolls = 1, firstStrike = 1.3,
+        die = {f("crit", 3), f("coin", 2), f("spare", 1), f("bleed", 1), f("blank"), f("blank")},
+        pool = {
+            f("spare", 1), f("spare", 1), f("coin", 3), f("coin", 3), f("power", 3), f("crit", 5), f("bleed", 2),
+            f("pickpocket", 3), f("hoard", 5), f("gamble", 3), f("underdog", 2), f("oddluck", 1), f("vampire", 4),
+            f("weaken", 5), f("poison", 3), f("shatter", 4),
+        }},
 }
-data.CLASS_ORDER = {"militia", "knight", "cunning", "frog", "samurai"}
+data.CLASS_ORDER = {"warrior", "mage", "rogue"}
 
--- Applies a campaign peasant's knack, or a class, to the run (dice, nerve and run.perks)
-function data.applyCampaignPick(def, run)
+-- The sum of a passive across the run's race, class, weapon and background
+function data.trait(run, key)
+    local defs = {data.RACES[run.race or ""], data.CLASSES[run.class or ""], data.WEAPONS[run.weapon or ""],
+        data.BACKSTORIES[run.backstory or ""]}
+    local total = 0
+    for i = 1, 4 do   -- not ipairs: any of them may be missing
+        local def = defs[i]
+        if def and def[key] then total = total + (def[key] == true and 1 or def[key]) end
+    end
+    return total
+end
+
+-- The modifier faces this run can find: its class's pool
+function data.modPool(run)
+    return (data.CLASSES[run.class or ""] or data.CLASSES.warrior).pool
+end
+
+-- Applies a race's, class's or background's set-up passives to the run: nerve, die faces, gold, rerolls,
+-- relics, upgrades
+function data.applyPick(def, run)
     local hp = def.hp or 0
-    run.maxHp, run.hp = run.maxHp + hp, run.hp + hp
+    run.maxHp = math.max(1, run.maxHp + hp)
+    run.hp = math.max(1, math.min(run.maxHp, run.hp + hp))
     for _, die in ipairs(run.dice) do
         local bump = def.bump and def.bump[die.role] or 0
         for _, face in ipairs(die.faces) do
-            if face.kind ~= "blank" then face.value = face.value + bump
-            elseif def.bakes and die.role == "custom" then face.kind, face.value = "mend", 2 end
+            if face.kind ~= "blank" then face.value = face.value + bump end
         end
     end
+    run.gold = run.gold + (def.gold or 0)
     local p = run.perks
     p.rerolls = p.rerolls + (def.rerolls or 0)
     p.relics = p.relics + (def.relics or 0)
-    p.draft = p.draft or def.draft
+    p.upgrades = p.upgrades + (def.upgrades or 0)
 end
 
--- Backstories: a second choice that reshapes your dice or how they score
+-- Picks class id for the run: its passives, then its starting modifier die
+function data.applyClass(id, run)
+    local c = data.CLASSES[id]
+    run.class = id
+    data.applyPick(c, run)
+    for _, die in ipairs(run.dice) do
+        if die.role == "custom" then
+            die.faces = {}
+            for j, face in ipairs(c.die) do die.faces[j] = {kind = face.kind, value = face.value} end
+        end
+    end
+end
+
+-- Backgrounds (run.backstory): where your hero came from, picked from a random few each run (see
+-- data.BACKGROUND_OFFERS). Each is painted in bg/bk_<id>.png. Set-up passives work as a race's do
+-- (hp, bump, rerolls, relics, upgrades, plus gold); duel passives are read through data.trait, adding:
+-- winGold (gold after every win), hitGold (gold every turn your attack gets through), straightMult
+-- (mult on a RUN, SCALE or GRAND SCALE). The Criminal and Sage have rules of their own.
 data.BACKSTORIES = {
-    criminal  = {name = "Criminal",  title = "Loaded and crooked", icon = "eye",   color = PURPLE,
-        perk = "Mixed dice spread out: lowest faces -1, highest +1."},
-    scholar   = {name = "Scholar",   title = "Read every rulebook", icon = "star", color = BLUE,
-        perk = "A free upgrade to start. Spoils modifiers fit any die.", upgrades = 1},
-    barbarian = {name = "Barbarian", title = "Hits first, counts later", icon = "flame", color = RED,
-        perk = "Red and blue dice +1. PAIR and ALL EVENS/ODDS get +1 mult."},
+    acolyte      = {name = "Acolyte", title = "Raised in the temple", color = {0.95, 0.85, 0.55},
+        perk = "Recover 5 nerve after every win.", winHeal = 5},
+    artisan      = {name = "Artisan", title = "Good with their hands", color = {0.85, 0.55, 0.25},
+        perk = "A free face upgrade at the start of the run.", upgrades = 1},
+    criminal     = {name = "Criminal", title = "Loaded and crooked", color = {0.80, 0.40, 0.30},
+        perk = "Mixed dice spread out: lowest faces -1, highest +2."},
+    spy          = {name = "Spy", title = "Always one step ahead", color = {0.45, 0.50, 0.85},
+        perk = "+1 reroll every turn.", rerolls = 1},
+    cultist      = {name = "Cultist", title = "Made a dark bargain", color = {0.85, 0.20, 0.25},
+        perk = "Every hand gets +1 mult, but -6 max nerve.", mult = 1, hp = -6},
+    entertainer  = {name = "Entertainer", title = "Plays to the crowd", color = {0.75, 0.45, 0.90},
+        perk = "Earn 6 extra gold after every win.", winGold = 6},
+    farmer       = {name = "Farmer", title = "Up before dawn", color = {0.60, 0.75, 0.35},
+        perk = "+8 max nerve.", hp = 8},
+    folkhero     = {name = "Folk Hero", title = "The village's champion", color = {0.40, 0.60, 0.90},
+        perk = "Start every turn with 3 block.", block = 3},
+    gladiator    = {name = "Gladiator", title = "Fights for the crowd", color = {0.90, 0.35, 0.25},
+        perk = "Your red die starts with every face 1 higher.", bump = {red = 1}},
+    hermit       = {name = "Hermit", title = "Alone with the dice", color = {0.45, 0.70, 0.55},
+        perk = "+4 max nerve. Once a turn, a die that lands on a blank rolls again.", hp = 4, luckyBlank = 1},
+    investigator = {name = "Investigator", title = "Spots every weakness", color = {0.70, 0.65, 0.50},
+        perk = "Every modifier face's number counts 2 in your favour.", modBoost = 2},
+    merchant     = {name = "Merchant", title = "Knows the price of everything", color = {0.95, 0.70, 0.30},
+        perk = "Start the run with 30 extra gold.", gold = 30},
+    noble        = {name = "Noble", title = "Born to wealth", color = {0.40, 0.50, 0.95},
+        perk = "Start the run with an extra relic, but -5 max nerve.", relics = 1, hp = -5},
+    outlander    = {name = "Outlander", title = "Hardened by the wilds", color = {0.80, 0.55, 0.35},
+        perk = "Whenever a rival hurts you, it takes 3 damage back.", rebuke = 3},
+    sage         = {name = "Sage", title = "Read every book", color = {0.55, 0.60, 1.00},
+        perk = "+4 max nerve. Spoils modifier faces fit any die.", hp = 4},
+    soldier      = {name = "Soldier", title = "Drilled and disciplined", color = {0.75, 0.30, 0.30},
+        perk = "Your blue die starts with every face 2 higher.", bump = {blue = 2}},
+    urchin       = {name = "Urchin", title = "Grew up on scraps", color = {0.60, 0.55, 0.50},
+        perk = "+3 gold every turn your attack gets through.", hitGold = 3},
+    sailor       = {name = "Sailor", title = "Reads the tides", color = {0.35, 0.65, 0.85},
+        perk = "RUN, SCALE and GRAND SCALE get +1 mult.", straightMult = 1},
 }
-data.BACKSTORY_ORDER = {"criminal", "scholar", "barbarian"}
--- Campaign weapons, picked after the class. Each rewrites some of your dice; faces are written for a
--- fresh peasant, and whatever upgrades, knack and class already added to that die stays on top.
--- 0 is a blank. hp changes your max nerve (the price of a strong weapon); stagger scales how hard
--- rivals are to stagger; staff turns your mixed dice into a second red and a second blue die.
--- Weapons with an unlock wait off the rack until you've done it: beat lists rivals to defeat (on any
--- runs), wins counts duels won.
+data.BACKSTORY_ORDER = {"acolyte", "artisan", "criminal", "spy", "cultist", "entertainer", "farmer", "folkhero",
+    "gladiator", "hermit", "investigator", "merchant", "noble", "outlander", "sage", "soldier", "urchin", "sailor"}
+data.BACKGROUND_OFFERS = 5   -- backgrounds on offer each run
+-- Campaign weapons, picked after the class; each belongs to one class. Each rewrites some of your
+-- dice; faces are written for a fresh peasant, and whatever upgrades, knack and class already added to
+-- that die stays on top. 0 is a blank. hp changes your max nerve (the price of a strong weapon);
+-- stagger scales how hard rivals are to stagger; staff turns your mixed dice into a second red and a
+-- second blue die; rerolls adds rerolls each turn. Duel passives (see data.trait): luckyBlank,
+-- runeEvery (every Nth turn your hand deals x2 attack), atkFlat (damage added to every hand that
+-- attacks), pierce (your attacks ignore his guard), parry (damage he takes when your block stops his
+-- whole attack).
+-- A class's first weapon is always on its rack; the rest wait until you've done their unlock with that
+-- class: beat lists rivals to defeat (on any runs), wins counts duels won.
 local function faces(kind, ...)
     local list = {}
     for i, v in ipairs({...}) do list[i] = v == 0 and f("blank") or f(kind, v) end
     return list
 end
 data.WEAPONS = {
-    greatsword = {name = "Greatsword", title = "All or nothing", color = {0.98, 0.75, 0.30}, artH = 118,
-        perk = "-6 max nerve. Red die: 1, 1, 3, 5, 5. Huge swings.", hp = -6, red = faces("sword", 1, 1, 3, 5, 5, 0),
+    -- the Warrior's
+    greatsword = {name = "Greatsword", title = "All or nothing", class = "warrior", color = {0.98, 0.75, 0.30}, artH = 118,
+        perk = "-2 max nerve. Red die: 1, 1, 4, 6, 6. Huge swings.", hp = -2, red = faces("sword", 1, 1, 4, 6, 6, 0)},
+    axe        = {name = "Battle Axe", title = "Swing first", class = "warrior", color = {0.30, 0.70, 0.60}, artH = 118,
+        perk = "Red die: 2, 3, 4, 5, 5.", red = faces("sword", 2, 3, 4, 5, 5, 0),
+        unlock = "Win 5 duels", wins = 5},
+    hammer     = {name = "War Hammer", title = "Rings their bell", class = "warrior", color = {0.35, 0.80, 0.75}, artH = 118,
+        perk = "-3 max nerve. Rivals stagger at 40% less damage.", hp = -3, stagger = 0.6,
         unlock = "Defeat Taurion and Grimstone", beat = {"minotaur", "gargoyle"}},
-    hammer     = {name = "War Hammer", title = "Rings their bell", color = {0.35, 0.80, 0.75}, artH = 118,
-        perk = "-3 max nerve. Rivals stagger at 40% less damage.", hp = -3, stagger = 0.6},
-    aegis      = {name = "Sword and Shield", title = "Steady and sure", color = {0.40, 0.55, 0.95}, artH = 114,
-        perk = "+12 max nerve. Blue die: five 3s.", hp = 12, blue = faces("shield", 3, 3, 3, 3, 3, 0),
-        unlock = "Win 10 duels", wins = 10},
-    staff      = {name = "Staff", title = "Bends the dice", color = {0.40, 0.65, 1.00}, artH = 114,
-        perk = "Your first mixed die becomes a red die, your second a blue die (blanks and all).", staff = true},
-    axe        = {name = "Battle Axe", title = "Swing first", color = {0.30, 0.70, 0.60}, artH = 118,
-        perk = "-2 max nerve. Red die: 2, 3, 4, 4, 5.", hp = -2, red = faces("sword", 2, 3, 4, 4, 5, 0)},
-    shuriken   = {name = "Shuriken", title = "Never miss twice", color = {0.85, 0.30, 0.30}, artH = 114,
+    aegis      = {name = "Sword and Shield", title = "Steady and sure", class = "warrior", color = {0.40, 0.55, 0.95}, artH = 114,
+        perk = "+12 max nerve. Blue die: 3, 3, 4, 4, 5.", hp = 12, blue = faces("shield", 3, 3, 4, 4, 5, 0),
+        unlock = "Defeat Count Vesper", beat = {"vampire"}},
+    -- the Mage's
+    grimoire   = {name = "Grimoire", title = "Forbidden pages", class = "mage", color = {0.30, 0.85, 0.55}, artH = 118,
+        perk = "-4 max nerve. Every 3rd turn your hand deals x2 attack.", hp = -4, runeEvery = 3},
+    staff      = {name = "Staff", title = "Bends the dice", class = "mage", color = {0.40, 0.65, 1.00}, artH = 114,
+        perk = "Your first mixed die becomes a red die, your second a blue die (blanks and all).", staff = true,
+        unlock = "Win 5 duels", wins = 5},
+    wand       = {name = "Wand", title = "A spark at every cast", class = "mage", color = {0.60, 0.45, 1.00}, artH = 118,
+        perk = "-2 max nerve. Every hand that attacks deals +4 damage.", hp = -2, atkFlat = 4,
+        unlock = "Defeat Granny Nettle and Velith", beat = {"hag", "darkelf"}},
+    sceptre    = {name = "Star Sceptre", title = "Commands the stars", class = "mage", color = {0.45, 0.60, 1.00}, artH = 118,
+        perk = "-3 max nerve. +1 reroll each turn. Once a turn, a blank rolls again.",
+        hp = -3, rerolls = 1, luckyBlank = 1,
+        unlock = "Defeat Count Vesper", beat = {"vampire"}},
+    -- the Rogue's
+    rapier     = {name = "Rapier", title = "Finds the gap", class = "rogue", color = {0.30, 0.75, 0.45}, artH = 118,
+        perk = "-1 max nerve. Your attacks ignore the rival's guard.", hp = -1, pierce = true},
+    daggers    = {name = "Twin Daggers", title = "Two cuts at once", class = "rogue", color = {0.65, 0.45, 0.90}, artH = 118,
+        perk = "-5 max nerve. Both mixed dice become all Strikes: 1, 1, 1, 1, 2, 2.", hp = -5,
+        mixed = faces("sword", 1, 1, 1, 1, 2, 2),
+        unlock = "Win 5 duels", wins = 5},
+    sai        = {name = "Sai", title = "Catch and turn", class = "rogue", color = {0.30, 0.70, 0.70}, artH = 118,
+        perk = "When your block stops a whole attack, the rival takes 12 damage.", parry = 12,
+        unlock = "Defeat The Weaver and Velith", beat = {"spider", "darkelf"}},
+    bow        = {name = "Longbow", title = "Patient aim", class = "rogue", color = {0.35, 0.75, 0.50}, artH = 118,
+        perk = "Red die never blanks: 2, 2, 3, 3, 3, 4.", red = faces("sword", 2, 2, 3, 3, 3, 4),
+        unlock = "Defeat Mossjaw and Ssarak", beat = {"troll", "lizard"}},
+    shuriken   = {name = "Shuriken", title = "Never miss twice", class = "rogue", color = {0.85, 0.30, 0.30}, artH = 114,
         perk = "-1 max nerve. Both mixed dice roll only 2s.", hp = -1,
-        mixed = {f("sword", 2), f("sword", 2), f("sword", 2), f("shield", 2), f("shield", 2), f("shield", 2)}},
-    daggers    = {name = "Twin Daggers", title = "Two cuts at once", color = {0.65, 0.45, 0.90}, artH = 118,
-        perk = "-7 max nerve. Both mixed dice become all Strikes: 1, 1, 2, 2, 3, 3.", hp = -7,
-        mixed = faces("sword", 1, 1, 2, 2, 3, 3)},
-    bow        = {name = "Longbow", title = "Patient aim", color = {0.35, 0.75, 0.50}, artH = 118,
-        perk = "-4 max nerve. Red die never blanks: 2, 2, 2, 3, 3, 3.", hp = -4, red = faces("sword", 2, 2, 2, 3, 3, 3)},
-    cannon     = {name = "Hand Cannon", title = "Boom or bust", color = {0.85, 0.65, 0.30}, artH = 90,
+        mixed = {f("sword", 2), f("sword", 2), f("sword", 2), f("shield", 2), f("shield", 2), f("shield", 2)},
+        unlock = "Win 15 duels", wins = 15},
+    cannon     = {name = "Hand Cannon", title = "Boom or bust", class = "rogue", color = {0.85, 0.65, 0.30}, artH = 90,
         perk = "-3 max nerve. Red die: three 6s, two 1s and a blank.", hp = -3, red = faces("sword", 0, 1, 1, 6, 6, 6),
         unlock = "Defeat Count Vesper", beat = {"vampire"}},
 }
-data.WEAPON_ORDER = {"greatsword", "hammer", "aegis", "staff", "axe", "shuriken", "daggers", "bow", "cannon"}
+data.WEAPON_ORDER = {"greatsword", "axe", "hammer", "aegis", "grimoire", "staff", "wand", "sceptre",
+    "rapier", "daggers", "sai", "bow", "shuriken", "cannon"}
 data.WEAPON_OFFERS = 3       -- weapons on the rack each run
 
 local function topFace(list)
@@ -517,6 +623,7 @@ function data.applyWeapon(id, dice, run)
         run.maxHp = math.max(1, run.maxHp + w.hp)
         run.hp = math.max(1, math.min(run.maxHp, run.hp + w.hp))
     end
+    if run and w.rerolls then run.perks.rerolls = run.perks.rerolls + w.rerolls end
     local base = {}
     for _, die in ipairs(data.PEASANT_DICE) do base[die.role] = base[die.role] or die end
     for _, die in ipairs(dice) do
@@ -548,11 +655,13 @@ end
 
 data.DRAFT_PICKS = 6         -- faces you draft onto your modifier die at the start of a run
 
--- Applies a backstory's changes to the run's dice
-function data.applyBackstory(id, dice)
-    for _, die in ipairs(dice) do
+-- Picks background id for the run: its set-up passives, and the Criminal's crooked mixed dice
+function data.applyBackstory(id, run)
+    run.backstory = id
+    data.applyPick(data.BACKSTORIES[id], run)
+    for _, die in ipairs(run.dice) do
         if id == "criminal" and die.role == "mixed" and not die.forged then
-            -- spread out: the lowest sword and shield drop by 1, the highest rise by 1 (1, 2, 3 reads 0, 2, 4)
+            -- spread out: the lowest sword and shield drop by 1, the highest rise by 2 (1, 2, 3 reads 0, 2, 5)
             for _, kind in ipairs({"sword", "shield"}) do
                 local low, high
                 for _, face in ipairs(die.faces) do
@@ -561,31 +670,18 @@ function data.applyBackstory(id, dice)
                         if not high or face.value >= high.value then high = face end
                     end
                 end
-                if low and high and low ~= high then low.value, high.value = math.max(0, low.value - 1), high.value + 1 end
-            end
-        elseif id == "barbarian" and (die.role == "red" or die.role == "blue") then
-            for _, face in ipairs(die.faces) do
-                if face.kind ~= "blank" then face.value = face.value + 1 end
+                if low and high and low ~= high then low.value, high.value = math.max(0, low.value - 1), high.value + 2 end
             end
         end
     end
 end
 
--- Faces offered as spoils after a duel, by the die they go on. Commons appear twice as often.
+-- Faces offered as spoils after a duel, by the die they go on. Modifier faces come from your class's
+-- pool (data.modPool).
 data.CARVE_POOL = {
     red    = {f("sword", 3), f("sword", 4), f("sword", 4), f("sword", 5), f("sword", 6)},
     blue   = {f("shield", 3), f("shield", 4), f("shield", 4), f("shield", 5), f("shield", 6)},
     mixed  = {f("sword", 3), f("sword", 4), f("sword", 5), f("shield", 3), f("shield", 4), f("shield", 5)},
-    custom = {
-        f("power", 3), f("power", 3), f("fortify", 3), f("fortify", 3), f("mend", 2), f("mend", 2),
-        f("spare", 1), f("spare", 1), f("balance", 2), f("balance", 2), f("resonance", 4), f("resonance", 4),
-        f("berserk", 6), f("thorns", 1), f("vampire", 4), f("poison", 3), f("bleed", 2), f("mirror", 1),
-        f("flip", 2), f("crit", 5), f("reprise", 1), f("growth", 1), f("bank", 2), f("gamble", 3),
-        f("wild"), f("coin", 3), f("lucky", 2), f("lucky", 5), f("shatter", 4),
-        f("calm", 1), f("laststand", 2), f("hoard", 5), f("underdog", 2), f("roller", 1), f("ram", 2), f("rally", 2),
-        f("pickpocket", 3), f("weaken", 5), f("sunder", 6), f("chain", 1), f("ladder", 1), f("twin"), f("wind", 5),
-        f("daze", 8), f("longodds", 2), f("cleanse", 3), f("leech", 3), f("oddluck", 1),
-    },
 }
 
 data.REST_HEAL = 12
@@ -1268,10 +1364,9 @@ local MARCH = {
 }
 data.CHAPTERS = {data.CAMPAIGN, MARCH}
 
--- The campaign hero: a peasant with poor dice who grows through Millbrook's upgrades
+-- The campaign hero: a peasant of Millbrook with poor dice who grows through the village's upgrades.
+-- Their modifier die is replaced by their class's.
 data.PEASANT_HP = 30
--- a peasant who hasn't earned a class yet is stubborn instead: extra nerve until one is unlocked
-data.UNTRAINED = {name = "Untrained", color = {0.62, 0.58, 0.50}, perk = "No class yet. +10 max nerve.", hp = 10}
 data.PEASANT_DICE = {
     {role = "red",    faces = {f("sword", 1), f("sword", 1), f("sword", 2), f("sword", 2), f("sword", 3), f("blank")}},
     {role = "blue",   faces = {f("shield", 1), f("shield", 1), f("shield", 2), f("shield", 2), f("shield", 3), f("blank")}},
@@ -1302,7 +1397,7 @@ data.VILLAGE = {
     {id = "whetstone", name = "Whetstone",          icon = "+",      costs = {10, 20},
         desc = "Upgrade one face at the start of each run, per level."},
     {id = "pastlife",  name = "A Past Life",        icon = "eye",    costs = {20},
-        desc = "Choose a backstory at the start of each run."},
+        desc = "Once a run, redraw the backgrounds on offer."},
 }
 data.NODE_TYPES = {
     duel   = {name = "Duel",     icon = "sword", color = RED},

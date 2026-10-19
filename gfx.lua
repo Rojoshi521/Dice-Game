@@ -52,7 +52,7 @@ end
 -- Returns false when the picture is missing so the caller can fall back.
 local backdrops = {}
 
-function gfx.backdrop(name, tint, t)
+local function backdropImage(name)
     if backdrops[name] == nil then
         local path = "bg/" .. name .. ".png"
         local img = love.filesystem.getInfo(path) and lg.newImage(path, {mipmaps = true}) or false
@@ -62,7 +62,24 @@ function gfx.backdrop(name, tint, t)
         end
         backdrops[name] = img
     end
-    local img = backdrops[name]
+    return backdrops[name]
+end
+
+-- A picture from bg/ filling box x, y, w, h (cropped to fit, never stretched); false if it's missing
+function gfx.picture(name, x, y, w, h, alpha)
+    local img = backdropImage(name)
+    if not img then return false end
+    local iw, ih = img:getDimensions()
+    local s = math.max(w / iw, h / ih)
+    gfx.scissor(x, y, w, h)
+    lg.setColor(1, 1, 1, alpha or 1)
+    lg.draw(img, x + w / 2, y + h / 2, 0, s, s, iw / 2, ih / 2)
+    gfx.scissor()
+    return true
+end
+
+function gfx.backdrop(name, tint, t)
+    local img = backdropImage(name)
     if not img then return false end
     local iw, ih = img:getDimensions()
     local s = math.max(gfx.W / iw, gfx.H / ih) * 1.04

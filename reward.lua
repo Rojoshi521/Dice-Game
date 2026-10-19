@@ -87,7 +87,7 @@ local function leave()
 end
 
 local function faceOffer(role)
-    local pool = data.CARVE_POOL[role]
+    local pool = role == "custom" and data.modPool(run) or data.CARVE_POOL[role]
     return {role = role, face = copy(pool[math.random(#pool)]), sc = 0, lift = 0}
 end
 
@@ -99,12 +99,12 @@ function reward.enter()
         anims[i] = {}
         for j = 1, #die.faces do anims[i][j] = {sc = 1} end
     end
-    -- one red, blue or mixed face, two modifier faces, and the chisel
+    -- one red, blue or mixed face, two modifier faces from your class's pool, and the chisel
     local roles = {"red", "blue", "mixed"}
     offers = {faceOffer(roles[math.random(3)]), faceOffer("custom"), faceOffer("custom"),
         {upgrade = true, face = UPGRADE, sc = 0, lift = 0}}
-    -- the Scholar's modifier faces fit on any die
-    if run.backstory == "scholar" then
+    -- the Sage's modifier faces fit on any die
+    if run.backstory == "sage" then
         for _, o in ipairs(offers) do
             if o.role == "custom" then o.role = "any" end
         end

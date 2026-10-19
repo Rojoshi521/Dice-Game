@@ -39,6 +39,7 @@ local rot, streak                      -- the necromancer's curse on you; Hot St
 local lastMod, growth, thorns, bank     -- modifier-die state that outlives a single roll
 local gambled, spareUsed, rerolled      -- once-per-turn modifier faces; whether you rerolled
 local weaken                            -- how much your Weaken face cuts the rival's next hit
+local luckyUsed                         -- how many of the Halfling's blank rerolls this turn has used
 local loc                               -- where the duel is fought (data.LOCATIONS), nil off the campaign road
 local BLANK = {kind = "blank", value = 0}
 
@@ -118,6 +119,12 @@ local function land(d)
             if AUTO_TEST then autoFired("weighted") end
             fx.text("WEIGHTED", d.x, d.y - 36, PAL.grey, "small")
         end
+    end
+    -- the Halfling's luck: a few times a turn, a blank gets another go
+    if d.mine and not d.override and d.faces[d.face].kind == "blank" and luckyUsed < data.trait(run, "luckyBlank") then
+        luckyUsed = luckyUsed + 1
+        d.face = drawFace(d)
+        fx.text("LUCKY!", d.x, d.y - 36, PAL.gold, "small")
     end
     d.rot = (math.random() - 0.5) * 0.2
     d.sc = 1.35
@@ -209,11 +216,6 @@ end
 -- Everything your current roll will do; the preview and the resolution both use this
 local function evaluate()
     local pat, wild, parity = data.pattern(pipsOf(mine), #mine)
-    -- the Barbarian squeezes one more out of a PAIR and of ALL EVENS / ALL ODDS
-    if run.backstory == "barbarian" then
-        if pat.id == "pair" then pat = {id = pat.id, name = pat.name, mult = pat.mult + 1} end
-        if parity then parity = {name = parity.name, mult = parity.mult + 1} end
-    end
     local ev = {pat = pat, wild = wild, atk = 0, def = 0, mult = pat.mult, atkMult = 0, defMult = 0, gold = 0,
         heal = 0, shatter = false, poison = 0, bleed = 0, grow = 0, sunder = 0, weaken = 0, pick = 0, daze = 0, combos = {},
         xAtk = 1, xDef = 1}
@@ -246,10 +248,15 @@ local function evaluate()
     local straight = ({run = true, scale = true, grand = true})[pat.id]
     local order = {unpack(mine)}
     local twice = effectOf(modDie).kind
+    local boost = data.trait(run, "modBoost")   -- the High Elf's arcane blood
     if run.hasCharm("cup") and twice ~= "flip" and twice ~= "gamble" then order[#order + 1] = modDie end
     for _, d in ipairs(order) do
         local face = effectOf(d)
         local k, v = face.kind, face.value
+        local step = KINDS[k].step
+        if boost > 0 and step and k ~= "sword" and k ~= "shield" then
+            v = math.max(1, v + (step < 0 and -boost or boost))
+        end
         if k == "blank" and d == modDie and run.hasCharm("cup") then k = "lucky" end
         if k == "coin" then ev.gold = ev.gold + v
         elseif k == "mend" then ev.heal = ev.heal + v
@@ -330,6 +337,12 @@ local function evaluate()
         ev.def = ev.def + (e.def or 0)
         ev.xAtk, ev.xDef = ev.xAtk * (e.xAtk or 1), ev.xDef * (e.xDef or 1)
     end
+    -- race, class, weapon and background: the Mage's focus, the Rogue's opening strike, the Sailor's tides
+    ev.mult = ev.mult + data.trait(run, "mult")
+    if straight then ev.mult = ev.mult + data.trait(run, "straightMult") end
+    if turn == 1 and data.trait(run, "firstStrike") > 0 then ev.xAtk = ev.xAtk * data.trait(run, "firstStrike") end
+    local rune = data.trait(run, "runeEvery")   -- the Grimoire's pages
+    if rune > 0 and turn % rune == 0 then ev.xAtk = ev.xAtk * 2 end
     -- the place you're fighting in
     if loc then
         if loc.mult then ev.mult = ev.mult + loc.mult end
@@ -342,6 +355,7 @@ local function evaluate()
     ev.atkTotal = math.floor(ev.atk * (ev.mult + ev.atkMult) * ev.xAtk)
     ev.defTotal = math.floor(ev.def * (ev.mult + ev.defMult) * ev.xDef)
     if loc and ev.atkTotal > 0 then ev.atkTotal = ev.atkTotal + (loc.atk or 0) + math.floor((loc.atkPerTurn or 0) * turn) end
+    if ev.atkTotal > 0 then ev.atkTotal = ev.atkTotal + data.trait(run, "atkFlat") end   -- the Wand's spark
     if ev.thorns then ev.thorns = math.floor(ev.defTotal / 2) + ev.thorns end
     return ev
 end
@@ -367,6 +381,11 @@ local function baseMood()
     if hand and hand.sig then return "sig" end
     if isTell() and turn > 0 then return "tell" end
     return "idle"
+end
+
+-- Whether your attacks ignore his guard: the Executioner's Axe, the Graveyard, the Rapier
+local function pierces()
+    return run.hasCharm("axe") or (loc and loc.pierce) or data.trait(run, "pierce") > 0
 end
 
 local function damageRival(n, pierce)
@@ -458,11 +477,15 @@ local function win()
         run.hp = math.min(run.maxHp, run.hp + 15)
         lines[#lines + 1] = "+15 nerve"
     end
-    local winHeal = (run.hero and data.HEROES[run.hero].winHeal or 0)
-        + (run.class and data.CLASSES[run.class].winHeal or 0)
+    local winHeal = data.trait(run, "winHeal")
     if winHeal > 0 then
         run.hp = math.min(run.maxHp, run.hp + winHeal)
         lines[#lines + 1] = "+" .. winHeal .. " nerve"
+    end
+    local winGold = data.trait(run, "winGold")   -- the Entertainer's tips
+    if winGold > 0 then
+        run.gold = run.gold + winGold
+        lines[#lines + 1] = "+" .. winGold .. " gold"
     end
     if loc and loc.fastTurns and turn <= loc.fastTurns then
         run.gold = run.gold + loc.fastGold
@@ -478,7 +501,7 @@ local function win()
     if campaign then
         local glory = run.chapter().glory[boss and "boss" or rival.def.elite and "elite" or "duel"]
         require("campaign").earn(glory)
-        require("campaign").won(run.rival)
+        require("campaign").won(run.rival, run.class)
         table.insert(lines, 1, "+" .. glory .. " glory")
         if boss then require("campaign").cleared(run.act) end
     end
@@ -569,6 +592,16 @@ local function rivalAct()
                     if AUTO_TEST then autoFired("crown") end
                     fx.text("THORN CROWN", FIELD_X, PORTRAIT_Y - 44, PAL.green, "med")
                     damageRival(dmg, true)
+                end
+                local parry = data.trait(run, "parry")   -- the Sai
+                if dmg == 0 and parry > 0 and not rival.dead then
+                    fx.text("PARRY", FIELD_X - 40, PORTRAIT_Y - 44, PAL.blue, "med")
+                    damageRival(parry, true)
+                end
+                local rebuke = data.trait(run, "rebuke")   -- the Tiefling's hellfire
+                if dmg > 0 and rebuke > 0 and not rival.dead then
+                    fx.text("HELLFIRE", FIELD_X + 40, PORTRAIT_Y - 30, PAL.red, "med")
+                    damageRival(rebuke, true)
                 end
             end)
             if k == "backstab" or k == "gore" or KINDS[k].pierce then
@@ -736,13 +769,15 @@ local function resolve()
             sfx.play("block", 0.7)
         end
         local tookBefore = rival.took
-        if ev.atkTotal > 0 then damageRival(ev.atkTotal, run.hasCharm("axe") or (loc and loc.pierce)) end
+        if ev.atkTotal > 0 then damageRival(ev.atkTotal, pierces()) end
         if run.hasCharm("fang") then
             local suck = math.floor((rival.took - tookBefore) / 2)
             ev.heal = ev.heal + suck
             if AUTO_TEST and suck > 0 then autoFired("fang") end
         end
-        if loc and loc.hitGold and rival.took > tookBefore then ev.gold = ev.gold + loc.hitGold end
+        if rival.took > tookBefore then   -- the Dungeon's loot, the Urchin's light fingers
+            ev.gold = ev.gold + (loc and loc.hitGold or 0) + data.trait(run, "hitGold")
+        end
         if ev.pick > 0 and rival.took > 0 then
             ev.gold = ev.gold + ev.pick
             fx.text("PICKPOCKET", FIELD_X + 50, PORTRAIT_Y - 30, PAL.gold, "med")
@@ -805,8 +840,9 @@ local function startPlayerTurn()
     block, bank = bank, 0
     if block > 0 then fx.text("BANK +" .. block, BLOCK_POS.x, BLOCK_POS.y - 10, PAL.blue, "med") end
     if loc and loc.block then block = block + loc.block end
-    gambled, spareUsed, rerolled, weaken = false, false, false, 0
-    rerolls = math.max(0, data.MAX_REROLLS + (run.hasCharm("bones") and 3 or 0) + (run.hero and data.HEROES[run.hero].rerolls or 0)
+    block = block + data.trait(run, "block")   -- the Warrior's guard
+    gambled, spareUsed, rerolled, weaken, luckyUsed = false, false, false, 0, 0
+    rerolls = math.max(0, data.MAX_REROLLS + (run.hasCharm("bones") and 3 or 0)
         + (run.perks and run.perks.rerolls or 0) + (loc and loc.rerolls or 0))
     if run.hasCharm("pact") and run.hp > 1 then
         local cost = math.min(2, run.hp - 1)
@@ -1075,11 +1111,12 @@ end
 -- and a little for the rest. Finishing him or staggering him during a tell is worth a lot.
 local function handValue(ev)
     local guard = (ev.shatter and 0 or math.max(0, rival.block - ev.sunder))
-    if run.hasCharm("axe") or (loc and loc.pierce) then guard = 0 end
+    if pierces() then guard = 0 end
     local landed = math.max(0, ev.atkTotal - guard)
     local v = math.min(landed, rival.hp) + math.min(ev.defTotal, math.max(0, rivalAttack() - block))
     v = v + math.min(ev.heal, run.maxHp - run.hp) * 0.8 + ev.gold * 0.2 + (ev.poison + ev.bleed) * 1.5
     if landed >= rival.hp then v = v + 100 end
+    if rivalAttack() > 0 and block + ev.defTotal >= rivalAttack() then v = v + data.trait(run, "parry") end
     if isTell() and ev.atkTotal + ev.daze >= rival.stagger then v = v + 15 end
     return v
 end
@@ -1134,6 +1171,12 @@ function duel.auto()
         for id, n in pairs(AUTO_FIRED or {}) do fired[#fired + 1] = id .. "=" .. n end
         print("AUTO: relics " .. table.concat(run.charms, ",") .. "  fired " .. table.concat(fired, ","))
         AUTO_FIRED = {}
+        if run.mode == "campaign" and not ONE_DUEL and (phase == "lost" or rival.def.boss) then
+            -- the run's over: the weapons it earned, as the story pages would announce them
+            for _, p in ipairs(require("campaign").checkUnlocks()) do
+                print("AUTO: unlocked " .. p.art:sub(5) .. "  (" .. run.class .. ")")
+            end
+        end
         if phase == "lost" or rival.def.boss or ONE_DUEL then love.event.quit() else finish() end
     end
 end
@@ -1156,7 +1199,7 @@ function duel.enter()
     time, hpShake, turn, block, rerolls = 0, 0, 0, 0, 0
     score, banner, bubble, hand, introT = nil, nil, nil, nil, 0
     rot, streak = 0, 0
-    lastMod, growth, thorns, bank, gambled, spareUsed, rerolled, weaken = nil, 0, 0, 0, false, false, false, 0
+    lastMod, growth, thorns, bank, gambled, spareUsed, rerolled, weaken, luckyUsed = nil, 0, 0, 0, false, false, false, 0, 0
     charmAnim = {}
     local camp = run.mode == "campaign" and run.chapter() or {}
     rivalPower = data.RIVAL_POWER * (camp.power or 1)

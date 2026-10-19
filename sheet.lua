@@ -1,4 +1,4 @@
--- The Tab sheet: your peasant (or hero), class, backstory and weapon, and the dice pool. In a duel it
+-- The Tab sheet: your race, class, background and weapon, and the dice pool. In a duel it
 -- shows which faces each die still has to deal before it reshuffles.
 
 local data = require("data")
@@ -34,11 +34,10 @@ local function entry(label, def, x, y, w)
 end
 
 local function drawKit(x, y, w)
-    local campaign = run.mode == "campaign"
-    y = entry(campaign and "PEASANT" or "HERO", run.hero and data.HEROES[run.hero], x, y, w)
-    if campaign then y = entry("CLASS", run.class and data.CLASSES[run.class] or data.UNTRAINED, x, y, w) end
-    y = entry("BACKSTORY", run.backstory and data.BACKSTORIES[run.backstory], x, y, w)
-    if campaign then y = entry("WEAPON", run.weapon and data.WEAPONS[run.weapon], x, y, w) end
+    y = entry("RACE", run.race and data.RACES[run.race], x, y, w)
+    y = entry("CLASS", run.class and data.CLASSES[run.class], x, y, w)
+    y = entry("BACKGROUND", run.backstory and data.BACKSTORIES[run.backstory], x, y, w)
+    if run.mode == "campaign" then y = entry("WEAPON", run.weapon and data.WEAPONS[run.weapon], x, y, w) end
     gfx.print("NERVE " .. run.hp .. "/" .. run.maxHp .. "   GOLD " .. run.gold, x, y, "small", PAL.cream)
 end
 
