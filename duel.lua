@@ -847,6 +847,19 @@ local function resolve()
     for _, d in ipairs(mine) do d.held = false end
     local ev = evaluate()
     local s = {label = ev.pat.name, atk = 0, def = 0, mult = ev.pat.mult, atkPop = 0, defPop = 0, multPop = 0}
+    -- test runs: tally the modifier faces played, and flag any hand whose numbers came out impossible
+    if AUTO_TEST then
+        local kind = effectOf(modDie).kind
+        AUTO_MODS = AUTO_MODS or {}
+        AUTO_MODS[kind] = (AUTO_MODS[kind] or 0) + 1
+        for _, key in ipairs({"atkTotal", "defTotal", "heal", "gold", "bolt", "poison", "bleed", "mult"}) do
+            local v = ev[key]
+            if type(v) ~= "number" or v ~= v or v < 0 or v > 1e7 then
+                print(string.format("AUTO: BUG %s=%s with %s %d on %s", key, tostring(v), kind, effectOf(modDie).value,
+                    run.rival))
+            end
+        end
+    end
 
     fx.after(0.1, function()
         score = s
@@ -977,6 +990,9 @@ local function resolve()
         thorns = ev.thorns or 0
         catchParry = ev.catch or 0
         -- Hellfire and the Powder Keg cost nerve (never the last of it)
+        if AUTO_TEST and run.hp > run.maxHp then
+            print(string.format("AUTO: BUG nerve %d over max %d on %s", run.hp, run.maxHp, run.rival))
+        end
         if ev.selfHurt and run.hp > 1 then
             local cost = math.min(ev.selfHurt, run.hp - 1)
             run.hp = run.hp - cost
@@ -1391,6 +1407,14 @@ function duel.auto()
         for id, n in pairs(AUTO_FIRED or {}) do fired[#fired + 1] = id .. "=" .. n end
         print("AUTO: relics " .. table.concat(run.charms, ",") .. "  fired " .. table.concat(fired, ","))
         AUTO_FIRED = {}
+        local mods = {}
+        for kind, n in pairs(AUTO_MODS or {}) do mods[#mods + 1] = kind .. "=" .. n end
+        print("AUTO: mods " .. table.concat(mods, ","))
+        AUTO_MODS = {}
+        -- and what this run's dice could play, for checking every face behaves
+        local faces = {}
+        for _, face in ipairs(run.dice[#run.dice].faces) do faces[#faces + 1] = face.kind .. ":" .. face.value end
+        print("AUTO: moddie " .. table.concat(faces, ","))
         -- the run ends on a loss or the last act's boss; an earlier boss leads on to the next act
         local over = phase == "lost" or (rival.def.boss and (run.mode ~= "campaign" or run.act >= #data.ACTS))
         if run.mode == "campaign" and not ONE_DUEL and over then
