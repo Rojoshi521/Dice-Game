@@ -42,6 +42,9 @@ local weaken                            -- how much your Weaken face cuts the ri
 local luckyUsed                         -- how many of the Halfling's blank rerolls this turn has used
 local loc                               -- where the duel is fought (data.LOCATIONS), nil off the campaign road
 local startHp                           -- your nerve when the duel began
+local startBlock = 0                    -- the block you began this turn with (Counter reads it)
+local rerollsUsed = 0                   -- rerolls spent this turn (Starfall reads it)
+local catchParry = 0                    -- Catch Blade's riposte, waiting on the rival's attack
 local BLANK = {kind = "blank", value = 0}
 
 ---------------------------------------------------------------------------
@@ -205,6 +208,10 @@ local function charmEffects(pat, wild)
             e = {atk = 2 * rerolls, text = "+" .. 2 * rerolls .. " ATK"}
         elseif id == "axe" and rival.hp <= rival.maxHp / 4 then
             e = {xAtk = 2, text = "EXECUTE x2"}
+        elseif id == "hourglass" and turn % 4 == 0 then
+            e = {xAtk = 2, xDef = 2, text = "MOONLIT x2"}
+        elseif id == "horn" and turn == 1 then
+            e = {xAtk = 2, text = "STORMCALL x2"}
         end
         if e then
             e.index = i
@@ -219,7 +226,7 @@ local function evaluate()
     local pat, wild, parity = data.pattern(pipsOf(mine), #mine)
     local ev = {pat = pat, wild = wild, atk = 0, def = 0, mult = pat.mult, atkMult = 0, defMult = 0, gold = 0,
         heal = 0, shatter = false, poison = 0, bleed = 0, grow = 0, sunder = 0, weaken = 0, pick = 0, daze = 0, combos = {},
-        xAtk = 1, xDef = 1}
+        xAtk = 1, xDef = 1, bolt = 0}
     -- red and blue first; Gambler doubles them
     local x2 = gambled and 2 or 1
     local swords, shields = 0, 0
@@ -305,6 +312,73 @@ local function evaluate()
         elseif k == "cleanse" then ev.cleanse, ev.heal = true, ev.heal + v
         elseif k == "leech" then ev.sunder, ev.def = ev.sunder + v, ev.def + v
         elseif k == "oddluck" then ev.atk = ev.atk + v * odds
+        -- the classes' newer faces
+        elseif k == "bulwark" then ev.def = ev.def + (rerolled and v or v * 2)
+        elseif k == "counter" then ev.atk = ev.atk + v * math.floor(startBlock / 5)
+        elseif k == "shieldbash" then
+            local b = faceOf(mine[2])
+            ev.atk = ev.atk + v + (b.kind == "shield" and math.floor(b.value / 2) or 0)
+        elseif k == "steadfast" then
+            local r, b = faceOf(mine[1]), faceOf(mine[2])
+            if r.kind ~= "blank" and b.kind ~= "blank" and r.value >= 3 and b.value >= 3 then ev.mult = ev.mult + v end
+        elseif k == "arcane" then ev.bolt = ev.bolt + v
+        elseif k == "focus" then
+            if pat.id == "pair" or pat.id == "twopair" then ev.mult = ev.mult + v end
+        elseif k == "frost" then ev.def, ev.weaken = ev.def + v, ev.weaken + v
+        elseif k == "overload" then
+            if parity then ev.xAtk = ev.xAtk * 2 end
+        elseif k == "shiv" then ev.bolt = ev.bolt + (rival.hp < rival.maxHp / 2 and v * 2 or v)
+        elseif k == "envenom" then ev.poison, ev.envenom = ev.poison + v, true
+        elseif k == "evasion" then ev.def = ev.def + v * rerolls
+        -- races' faces
+        elseif k == "adaptable" then ev.atk, ev.def = ev.atk + v, ev.def + v
+        elseif k == "stoneskin" then ev.def = ev.def + (run.hp < run.maxHp / 2 and v * 2 or v)
+        elseif k == "gadget" then
+            local seen, n = {}, 0
+            for _, p in pairs(pipsOf(mine)) do
+                if p ~= "wild" and not seen[p] then seen[p], n = true, n + 1 end
+            end
+            ev.atk = ev.atk + v * n
+        elseif k == "spellweave" then ev.mult, ev.def = ev.mult + v, ev.def - 3
+        elseif k == "huntermark" then ev.atk = ev.atk + (turn == 1 and v * 2 or v)
+        elseif k == "luckybreak" then
+            if ones > 0 then ev.mult = ev.mult + v end
+        elseif k == "boulder" then
+            local r = faceOf(mine[1])
+            ev.atk = ev.atk + v
+            if r.kind ~= "blank" and r.value >= 4 then ev.def = ev.def + v end
+        elseif k == "earthshake" then ev.atk, ev.weaken = ev.atk + v, ev.weaken + v
+        elseif k == "hellfire" then ev.bolt, ev.selfHurt = ev.bolt + v, (ev.selfHurt or 0) + 1
+        -- weapons' faces
+        elseif k == "overhead" then
+            local r = faceOf(mine[1])
+            if r.kind ~= "blank" then ev.atk = ev.atk + v * math.floor(r.value / 2) end
+        elseif k == "rend" then
+            ev.bleed = ev.bleed + v
+            if rival.bleed > 0 then ev.atk = ev.atk + v end
+        elseif k == "quake" then ev.atk, ev.daze = ev.atk + v, ev.daze + v
+        elseif k == "shieldwall" then ev.def, ev.bank = ev.def + v, true
+        elseif k == "pagepower" then
+            if turn % 3 == 0 then ev.mult = ev.mult + v end
+        elseif k == "leyline" then
+            local r, b = faceOf(mine[1]), faceOf(mine[2])
+            local n = (r.kind ~= "blank" and r.value == b.value) and v * 2 or v
+            ev.atk, ev.def = ev.atk + n, ev.def + n
+        elseif k == "missile" then ev.bolt = ev.bolt + v * 2
+        elseif k == "starfall" then ev.atk = ev.atk + v * rerollsUsed
+        elseif k == "flurry" then ev.atk = ev.atk + v * swords
+        elseif k == "twinfang" then
+            local r, b = faceOf(mine[1]), faceOf(mine[2])
+            ev.atk = ev.atk + ((r.kind ~= "blank" and r.value == b.value) and v * 2 or v)
+        elseif k == "catchblade" then ev.def, ev.catch = ev.def + v, (ev.catch or 0) + v * 2
+        elseif k == "aimedshot" then ev.atk = ev.atk + (rerolled and v or v * 3)
+        elseif k == "starfan" then
+            local low = 0
+            for _, p in pairs(pipsOf(mine)) do
+                if p == 1 or p == 2 then low = low + 1 end
+            end
+            ev.bolt = ev.bolt + v * low
+        elseif k == "powderkeg" then ev.xAtk, ev.selfHurt = ev.xAtk * 2, (ev.selfHurt or 0) + 3
         end
         local rare = (face.tier or 1) >= 3 and KINDS[k].rare
         if rare then
@@ -320,6 +394,9 @@ local function evaluate()
         if sp.kind == "taunt" then
             local face = faceOf(mine[1])
             if face.kind == "sword" then ev.atk = ev.atk - math.min(sp.value, face.value) end
+        elseif sp.kind == "chill" then
+            local face = faceOf(mine[2])
+            if face.kind == "shield" then ev.def = ev.def - math.min(sp.value, face.value) end
         elseif sp.kind == "wither" then
             local top
             for _, d in ipairs(mine) do
@@ -354,11 +431,26 @@ local function evaluate()
         if loc.runeEvery and turn % loc.runeEvery == 0 then ev.xAtk = ev.xAtk * 2 end
     end
     ev.atk, ev.def = math.max(0, ev.atk), math.max(0, ev.def)
+    -- the rival's curse, last so nothing adds back past it
+    for _, sp in ipairs(hand and hand.specials or {}) do
+        if sp.kind == "curse" then ev.mult = math.max(1, ev.mult - sp.value) end
+    end
     ev.atkTotal = math.floor(ev.atk * (ev.mult + ev.atkMult) * ev.xAtk)
     ev.defTotal = math.floor(ev.def * (ev.mult + ev.defMult) * ev.xDef)
+    -- the rival's tricks that twist the finished hand
+    for _, sp in ipairs(hand and hand.specials or {}) do
+        if sp.kind == "confuse" then ev.atkTotal, ev.defTotal = ev.defTotal, ev.atkTotal end
+        if sp.kind == "blight" then ev.blight = true end
+    end
     if loc and ev.atkTotal > 0 then ev.atkTotal = ev.atkTotal + (loc.atk or 0) + math.floor((loc.atkPerTurn or 0) * turn) end
-    if ev.atkTotal > 0 then ev.atkTotal = ev.atkTotal + data.trait(run, "atkFlat") end   -- the Wand's spark
+    if ev.atkTotal > 0 then   -- the Battle Axe's bite, then the Wand's spark
+        ev.atkTotal = math.floor(ev.atkTotal * (1 + data.trait(run, "atkPct"))) + data.trait(run, "atkFlat")
+    end
     if ev.thorns then ev.thorns = math.floor(ev.defTotal / 2) + ev.thorns end
+    for _, sp in ipairs(hand and hand.specials or {}) do
+        if sp.kind == "shroud" then ev.atkTotal, ev.bolt = math.floor(ev.atkTotal / 2), math.floor(ev.bolt / 2) end
+    end
+    if ev.blight then ev.heal = 0 end
     return ev
 end
 
@@ -484,6 +576,10 @@ local function win()
         run.hp = math.min(run.maxHp, run.hp + winHeal)
         lines[#lines + 1] = "+" .. winHeal .. " nerve"
     end
+    if run.hasCharm("compass") then
+        run.gold = run.gold + 3
+        lines[#lines + 1] = "+3 gold"
+    end
     local winGold = data.trait(run, "winGold")   -- the Entertainer's tips
     if winGold > 0 then
         run.gold = run.gold + winGold
@@ -597,6 +693,7 @@ local function rivalAttack()
         if k == "riposte" and rival.parried > 0 then extra = extra + v end
         if k == "judgment" and hand.def > block then extra = extra + v end
         if k == "cataclysm" then extra = extra + rival.str * 2 end
+        if k == "bloodlust" and rival.hp < rival.maxHp / 2 then extra = extra + v end
         if k == "bash" or KINDS[k].bash then bash = true end
     end
     local atk = hand.atk + math.floor(extra * rivalPower)
@@ -627,13 +724,26 @@ local function rivalAct()
         if atk > 0 then
             fx.tween(rival, 0.12, {punch = 1}, "out", function() fx.tween(rival, 0.35, {punch = 0}) end)
             fx.timer(0.1, function()
+                if trick("smash") and block > 0 then
+                    block = 0
+                    fx.text("SMASHED!", BLOCK_POS.x + 40, BLOCK_POS.y - 24, PAL.red, "med", {shake = true})
+                end
                 local dmg = hurtPlayer(atk, pierce ~= nil)
+                if trick("double") and run.hp > 0 then
+                    fx.text("AGAIN!", FIELD_X + 30, PORTRAIT_Y - 30, PAL.red, "med")
+                    dmg = dmg + hurtPlayer(math.floor(atk / 2), pierce ~= nil)
+                end
+                if dmg > 0 and trick("drain") and not rival.dead then
+                    local before = rival.hp
+                    rival.hp = math.min(rival.maxHp, rival.hp + dmg)
+                    fx.text("DRAIN +" .. (rival.hp - before), RIVAL_HP.x + RIVAL_HP.w / 2, RIVAL_HP.y - 8, PAL.red, "big")
+                end
                 if dmg > 0 and run.hasCharm("crown") and not rival.dead then
                     if AUTO_TEST then autoFired("crown") end
                     fx.text("THORN CROWN", FIELD_X, PORTRAIT_Y - 44, PAL.green, "med")
                     damageRival(dmg, true)
                 end
-                local parry = data.trait(run, "parry")   -- the Sai
+                local parry = data.trait(run, "parry") + catchParry   -- the Sai, and its Catch Blade
                 if dmg == 0 and parry > 0 and not rival.dead then
                     fx.text("PARRY", FIELD_X - 40, PORTRAIT_Y - 44, PAL.blue, "med")
                     damageRival(parry, true)
@@ -820,6 +930,17 @@ local function resolve()
         end
         local tookBefore = rival.took
         if ev.atkTotal > 0 then damageRival(ev.atkTotal, pierces()) end
+        -- Arcane Bolt and Shiv strike past his guard
+        if ev.bolt > 0 and not rival.dead then
+            fx.text("BOLT", FIELD_X - 50, PORTRAIT_Y - 44, PAL.purple, "med")
+            damageRival(ev.bolt, true)
+        end
+        -- his Spikes bite back when you hurt him
+        local spikes = trick("spikes")
+        if spikes and rival.took > tookBefore then
+            fx.text("SPIKES", HP_POS.x, HP_POS.y - 14, PAL.green, "med")
+            hurtPlayer(spikes.value, true)
+        end
         if run.hasCharm("fang") then
             local suck = math.floor((rival.took - tookBefore) / 2)
             ev.heal = ev.heal + suck
@@ -847,9 +968,21 @@ local function resolve()
         end
         if ev.poison > 0 or ev.bleed > 0 then
             rival.poison, rival.bleed = rival.poison + ev.poison, rival.bleed + ev.bleed
+            if ev.envenom then
+                rival.poison = rival.poison * 2
+                fx.text("ENVENOM x2", FIELD_X + 50, PORTRAIT_Y - 44, PAL.green, "med")
+            end
             sfx.play("death", 1.6)
         end
         thorns = ev.thorns or 0
+        catchParry = ev.catch or 0
+        -- Hellfire and the Powder Keg cost nerve (never the last of it)
+        if ev.selfHurt and run.hp > 1 then
+            local cost = math.min(ev.selfHurt, run.hp - 1)
+            run.hp = run.hp - cost
+            hpShake = 1
+            fx.text("-" .. cost, HP_POS.x, HP_POS.y, PAL.red, "med")
+        end
         bank = ev.bank and math.floor(ev.defTotal / 2) or 0
         local mod = effectOf(modDie)
         if mod.kind ~= "blank" and mod.kind ~= "reprise" then lastMod = mod end
@@ -858,7 +991,7 @@ local function resolve()
             fx.text("+" .. ev.gold, GOLD_POS.x, GOLD_POS.y - 10, PAL.gold, "big")
             sfx.play("coin")
         end
-        if ev.heal > 0 then
+        if ev.heal > 0 and not ev.blight then   -- Blight: Vesper's Fang and Vampiric heal nothing either
             local before = run.hp
             run.hp = math.min(run.maxHp, run.hp + ev.heal)
             fx.text("+" .. (run.hp - before), HP_POS.x, HP_POS.y, PAL.green, "big")
@@ -891,8 +1024,15 @@ local function startPlayerTurn()
     if block > 0 then fx.text("BANK +" .. block, BLOCK_POS.x, BLOCK_POS.y - 10, PAL.blue, "med") end
     if loc and loc.block then block = block + loc.block end
     block = block + data.trait(run, "block")   -- the Warrior's guard
+    if run.hasCharm("ironring") then block = block + 5 end
+    if run.hasCharm("ember") and run.hp < run.maxHp then
+        local before = run.hp
+        run.hp = math.min(run.maxHp, run.hp + 2)
+        fx.text("EMBER +" .. (run.hp - before), HP_POS.x, HP_POS.y - 14, PAL.green, "med")
+    end
+    startBlock, rerollsUsed = block, 0
     gambled, spareUsed, rerolled, weaken, luckyUsed = false, false, false, 0, 0
-    rerolls = math.max(0, data.MAX_REROLLS + (run.hasCharm("bones") and 3 or 0)
+    rerolls = math.max(0, data.MAX_REROLLS + (run.hasCharm("bones") and 3 or 0) + (run.hasCharm("compass") and 1 or 0)
         + (run.perks and run.perks.rerolls or 0) + (loc and loc.rerolls or 0))
     if run.hasCharm("pact") and run.hp > 1 then
         local cost = math.min(2, run.hp - 1)
@@ -1138,7 +1278,7 @@ end
 local function reroll()
     if not canReroll() then return end
     rerolls = rerolls - 1
-    rerolled = true
+    rerolled, rerollsUsed = true, rerollsUsed + 1
     phase = "rolling"
     roll(mine, function(d) return not d.held and not d.locked and not d.fixed end)
 end
@@ -1190,7 +1330,7 @@ end
 local function handValue(ev)
     local guard = (ev.shatter and 0 or math.max(0, rival.block - ev.sunder))
     if pierces() then guard = 0 end
-    local landed = math.max(0, ev.atkTotal - guard)
+    local landed = math.max(0, ev.atkTotal - guard) + ev.bolt
     local v = math.min(landed, rival.hp) + math.min(ev.defTotal, math.max(0, rivalAttack() - block))
     v = v + math.min(ev.heal, run.maxHp - run.hp) * 0.8 + ev.gold * 0.2 + (ev.poison + ev.bleed) * 1.5
     if landed >= rival.hp then v = v + 100 end
@@ -1281,6 +1421,7 @@ function duel.enter()
     rot, streak = 0, 0
     lastMod, growth, thorns, bank, gambled, spareUsed, rerolled, weaken, luckyUsed = nil, 0, 0, 0, false, false, false, 0, 0
     charmAnim = {}
+    catchParry, rerollsUsed = 0, 0
     local camp = run.mode == "campaign" and run.chapter() or {}
     rivalPower = data.RIVAL_POWER * (camp.power or 1)
     rivalHpScale = data.RIVAL_HP_SCALE * (camp.hpScale or 1)
@@ -1535,6 +1676,8 @@ local function drawSidebar()
         if ev.sunder > 0 then extras[#extras + 1] = "sunder " .. ev.sunder end
         if ev.weaken > 0 then extras[#extras + 1] = "weaken " .. ev.weaken end
         if ev.pick > 0 then extras[#extras + 1] = "pickpocket" end
+        if ev.bolt > 0 then extras[#extras + 1] = "bolt " .. ev.bolt end
+        if ev.envenom then extras[#extras + 1] = "envenom" end
         gfx.print(table.concat(extras, " "), x + 10, 256, "small", PAL.green, "left", w - 16)
     end
 

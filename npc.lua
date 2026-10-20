@@ -171,11 +171,11 @@ local SERVICES = {
     merchant = function()
         return {
             {label = function() return stock and ("BUY " .. data.CHARMS[stock].name:upper() .. "  " .. math.ceil(
-                data.CHARMS[stock].price / 2) .. "g") or "SOLD OUT" end,
-                enabled = function() return stock and run.gold >= math.ceil(data.CHARMS[stock].price / 2)
+                data.charmPrice(stock, run) / 2) .. "g") or "SOLD OUT" end,
+                enabled = function() return stock and run.gold >= math.ceil(data.charmPrice(stock, run) / 2)
                     and #run.charms < data.MAX_CHARMS end,
                 act = function()
-                    run.gold = run.gold - math.ceil(data.CHARMS[stock].price / 2)
+                    run.gold = run.gold - math.ceil(data.charmPrice(stock, run) / 2)
                     run.addCharm(stock)
                     stock = nil
                     sfx.play("coin")

@@ -81,6 +81,10 @@ local function modIndex() return #run.dice end
 
 local function leave()
     sfx.play("click")
+    if AUTO_TEST then
+        print(string.format("AUTO: outfit %s %s %s %s", run.class or "-", run.weapon or "-", run.race or "-",
+            run.backstory or "-"))
+    end
     -- the campaign opens with Act I's story, then the first choice of where to go
     if run.mode == "campaign" then
         return require("story").play({run.chapter().intro}, function() scene.go("route") end)
@@ -361,6 +365,10 @@ function outfit.auto()
     if cardStep() then
         if not chosenT then
             local i = math.random(#cardOrder())
+            -- test runs: --class picks the class card
+            for k, id in ipairs(cardOrder()) do
+                if step == "class" and id == CLASS then i = k end
+            end
             local pick = ({race = pickRace, class = pickClass, weapon = pickWeapon, backstory = pickBackstory})[step]
             pick(i)
         end
@@ -657,8 +665,9 @@ function outfit.draw()
                 local hot = overRelic(i, scene.mx, scene.my)
                 ui.charmCard(item.id, cx, cy - 18 - (hot and 3 or 0) + math.sin(time * 2 + i) * 2, 1.6,
                     math.sin(time * 1.3 + i) * 0.05)
+                local _, nameLines = gfx.font.small:getWrap(c.name, 104)
                 gfx.print(c.name, cx, cy + 18, "small", hot and PAL.gold or PAL.cream, "center", 104)
-                gfx.print(c.desc, cx, cy + 30, "small", PAL.grey, "center", 104)
+                gfx.print(c.desc, cx, cy + 20 + #nameLines * gfx.font.small:getHeight(), "small", PAL.grey, "center", 104)
                 if hot then ui.tipCharm(item.id) end
             end
         end

@@ -24,12 +24,12 @@ local function overCard(i, x, y)
 end
 
 local function canBuy(item)
-    return not item.sold and run.gold >= data.CHARMS[item.id].price and #run.charms < data.MAX_CHARMS
+    return not item.sold and run.gold >= data.charmPrice(item.id, run) and #run.charms < data.MAX_CHARMS
 end
 
 local function buy(i)
     local item = stock[i]
-    run.gold = run.gold - data.CHARMS[item.id].price
+    run.gold = run.gold - data.charmPrice(item.id, run)
     run.addCharm(item.id)
     item.sold = true
     local cx, cy = cardPos(i)
@@ -39,8 +39,11 @@ local function buy(i)
     sfx.play("mult", 1.2)
 end
 
+-- the Merchant Prince's Signet takes 30% off drinks too
+local function drinkCost() return run.hasCharm("signet") and math.ceil(data.DRINK_COST * 0.7) or data.DRINK_COST end
+
 local function drink()
-    run.gold = run.gold - data.DRINK_COST
+    run.gold = run.gold - drinkCost()
     local before = run.hp
     run.hp = math.min(run.maxHp, run.hp + data.DRINK_HEAL)
     fx.text("+" .. (run.hp - before), 118, 74, PAL.green, "big")
@@ -67,15 +70,15 @@ function shop.enter()
         stock[i] = {id = table.remove(pool, math.random(#pool)), sold = false}
     end
     buttons = {
-        drink = {x = FIELD_X - 70, y = 236, w = 140, h = 28, color = PAL.green,
-            label = "DRINK +" .. data.DRINK_HEAL .. "  " .. data.DRINK_COST .. "g"},
+        drink = {x = FIELD_X - 70, y = 256, w = 140, h = 28, color = PAL.green,
+            label = "DRINK +" .. data.DRINK_HEAL .. "  " .. drinkCost() .. "g"},
         go = {x = 12, y = 318, w = 132, h = 26, label = "ONWARD", color = PAL.blue},
     }
 end
 
 function shop.update(dt)
     time = time + dt
-    buttons.drink.enabled = not drinkSold and run.gold >= data.DRINK_COST and run.hp < run.maxHp
+    buttons.drink.enabled = not drinkSold and run.gold >= drinkCost() and run.hp < run.maxHp
 end
 
 function shop.mousepressed(x, y)
@@ -113,15 +116,17 @@ function shop.draw()
             ui.charmCard(item.id, cx, cy - 18 - (hot and 3 or 0) + math.sin(time * 2 + i) * 2, 1.6,
                 math.sin(time * 1.3 + i) * 0.05)
             local tw = #stock > 3 and 88 or 104
+            -- long names wrap, so the description starts below however many lines the name took
+            local _, nameLines = gfx.font.small:getWrap(c.name, tw)
             gfx.print(c.name, cx, cy + 18, "small", PAL.cream, "center", tw)
-            gfx.print(c.desc, cx, cy + 30, "small", PAL.grey, "center", tw)
-            gfx.print(c.price .. "g", cx, cy - 62, "med", canBuy(item) and PAL.gold or PAL.red, "center", 60)
+            gfx.print(c.desc, cx, cy + 20 + #nameLines * gfx.font.small:getHeight(), "small", PAL.grey, "center", tw)
+            gfx.print(data.charmPrice(item.id, run) .. "g", cx, cy - 62, "med", canBuy(item) and PAL.gold or PAL.red, "center", 60)
         end
         if hot then ui.tipCharm(item.id) end
     end
     gfx.button(buttons.drink, scene.mx, scene.my)
     if #run.charms >= data.MAX_CHARMS then
-        gfx.print("Your pockets are full.", FIELD_X, 272, "small", PAL.red, "center", 200)
+        gfx.print("Your pockets are full.", FIELD_X, 292, "small", PAL.red, "center", 200)
     end
     ui.charmRow(176, 26)
     ui.drawTip()

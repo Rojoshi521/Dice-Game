@@ -91,6 +91,81 @@ data.KINDS = {
         desc = "Breaks N of his guard and adds N to your defense."},
     oddluck   = {name = "Odd Luck",  icon = "7",      color = GOLD,   step = 1, rare = {mult = 1},
         desc = "+N attack for every odd number you rolled."},
+    -- the warrior's
+    bulwark   = {name = "Bulwark",   icon = "shield", color = BLUE,   step = 2, rare = {heal = 2},
+        desc = "+N defense, doubled if you didn't reroll this turn."},
+    counter   = {name = "Counter",   icon = "sword",  color = RED,    step = 1, rare = {def = 2},
+        desc = "+N attack for every 5 block you had when your turn began."},
+    shieldbash = {name = "Shield Bash", icon = "shield", color = RED, step = 2, rare = {atk = 2},
+        desc = "+N attack, plus half the number on your blue die."},
+    steadfast = {name = "Steadfast", icon = "4",      color = GOLD,   step = 1, rare = {def = 2},
+        desc = "+N mult if your red and blue dice both show 3 or more."},
+    -- the mage's
+    arcane    = {name = "Arcane Bolt", icon = "star", color = PURPLE, step = 2, rare = {mult = 1},
+        desc = "Deals N damage straight to him, ignoring his guard."},
+    focus     = {name = "Focus",     icon = "halo",   color = BLUE,   step = 1, rare = {atk = 2},
+        desc = "+N mult on a PAIR or TWO PAIR."},
+    frost     = {name = "Frost",     icon = "shield", color = BLUE,   step = 2, rare = {def = 2},
+        desc = "+N defense, and his attack this turn drops by N."},
+    overload  = {name = "Overload",  icon = "!",      color = PURPLE,
+        desc = "x2 attack on ALL EVENS or ALL ODDS."},
+    -- the rogue's
+    shiv      = {name = "Shiv",      icon = "sword",  color = PURPLE, step = 2, rare = {bleed = 2},
+        desc = "Deals N damage straight to him, ignoring his guard. Double if he's below half nerve."},
+    loaded    = {name = "Loaded Die", icon = "dice",  color = GOLD,
+        desc = "Counts as a N for patterns. Does nothing else."},
+    envenom   = {name = "Envenom",   icon = "skull",  color = GREEN,  step = 1, rare = {poison = 2},
+        desc = "Adds N poison, then doubles all his poison."},
+    evasion   = {name = "Evasion",   icon = "eye",    color = BLUE,   step = 1, rare = {heal = 2},
+        desc = "+N defense for every reroll you have left."},
+    -- races' faces (data.RACE_FACES)
+    adaptable = {name = "Adaptable", icon = "=",      color = GOLD,   step = 1, rare = {heal = 2},
+        desc = "+N attack and +N defense."},
+    stoneskin = {name = "Stoneskin", icon = "shield", color = BLUE,   step = 2, rare = {def = 2},
+        desc = "+N defense, doubled while you're below half nerve."},
+    gadget    = {name = "Gadget",    icon = "+",      color = GOLD,   step = 1, rare = {atk = 2},
+        desc = "+N attack for every different number you rolled."},
+    spellweave = {name = "Spellweave", icon = "star", color = PURPLE, step = 1, rare = {atk = 2},
+        desc = "+N mult, but -3 defense."},
+    huntermark = {name = "Hunter's Mark", icon = "eye", color = GREEN, step = 2, rare = {bleed = 2},
+        desc = "+N attack, doubled on your first hand of a duel."},
+    luckybreak = {name = "Lucky Break", icon = "1",   color = GOLD,   step = 1, rare = {heal = 2},
+        desc = "+N mult if any of your dice rolled a 1."},
+    boulder   = {name = "Boulder",   icon = "4",      color = RED,    step = 2, rare = {def = 2},
+        desc = "+N attack, and +N defense too if your red die shows 4 or more."},
+    earthshake = {name = "Earthshaker", icon = "shatter", color = RED, step = 2, rare = {heal = 2},
+        desc = "+N attack, and his attack this turn drops by N."},
+    hellfire  = {name = "Hellfire",  icon = "flame",  color = RED,    step = 2, rare = {mult = 1},
+        desc = "Deals N damage straight to him, ignoring his guard. Costs you 1 nerve."},
+    -- weapons' faces (data.WEAPON_FACES)
+    overhead  = {name = "Overhead Swing", icon = "sword", color = RED, step = 1, rare = {atk = 2},
+        desc = "+N attack for every 2 on your red die."},
+    rend      = {name = "Rend",      icon = "%",      color = RED,    step = 2, rare = {atk = 3},
+        desc = "Adds N bleed, and +N attack if he's already bleeding."},
+    quake     = {name = "Quake",     icon = "shatter", color = GOLD,  step = 2, rare = {atk = 2},
+        desc = "+N attack, and counts N extra toward staggering him."},
+    shieldwall = {name = "Shield Wall", icon = "shield", color = BLUE, step = 2, rare = {heal = 2},
+        desc = "+N defense, and half your defense carries over to next turn."},
+    pagepower = {name = "Page of Power", icon = "star", color = PURPLE, step = 1, rare = {atk = 2},
+        desc = "+N mult on every 3rd turn."},
+    leyline   = {name = "Ley Line",  icon = "~",      color = BLUE,   step = 1, rare = {mult = 1},
+        desc = "+N to both your red and blue, doubled if they show the same number."},
+    missile   = {name = "Magic Missile", icon = "star", color = PURPLE, step = 1, rare = {atk = 2},
+        desc = "Deals N damage straight to him, twice."},
+    starfall  = {name = "Starfall",  icon = "star",   color = GOLD,   step = 1, rare = {mult = 1},
+        desc = "+N attack for every reroll you used this turn."},
+    flurry    = {name = "Flurry",    icon = "sword",  color = GREEN,  step = 1, rare = {atk = 2},
+        desc = "+N attack for every Strike face showing."},
+    twinfang  = {name = "Twin Fangs", icon = "@",     color = RED,    step = 2, rare = {bleed = 2},
+        desc = "+N attack, twice if your red and blue show the same number."},
+    catchblade = {name = "Catch Blade", icon = "shield", color = BLUE, step = 2, rare = {def = 2},
+        desc = "+N defense. If your block stops his whole attack this turn, he takes 2N."},
+    aimedshot = {name = "Aimed Shot", icon = "eye",   color = GREEN,  step = 2, rare = {atk = 2},
+        desc = "+N attack, tripled if you didn't reroll this turn."},
+    starfan   = {name = "Fan of Stars", icon = "star", color = GREEN, step = 1, rare = {atk = 2},
+        desc = "Deals N damage straight to him for every 1 or 2 you rolled."},
+    powderkeg = {name = "Powder Keg", icon = "!",     color = RED,
+        desc = "x2 attack, but you lose 3 nerve."},
     upgrade   = {name = "Upgrade",   icon = "+",      color = GOLD,   label = "+",
         desc = "Enhance one face. Tier II raises its number; tier III adds a rare bonus."},
     -- rival tricks
@@ -131,6 +206,17 @@ data.KINDS = {
     encore     = {name = "Encore",      icon = "star",   color = GOLD,   desc = "Copies the number on his red die."},
     taunt      = {name = "Taunt",       icon = "bubble", color = RED,    desc = "Your red die counts N less this turn."},
     inspire    = {name = "Inspire",     icon = "+",      color = GOLD,   desc = "His red and blue dice count 1 higher."},
+    -- newer tricks, worked into the trick dice of the monsters that suit them (see data.TRICK_ADDS)
+    chill      = {name = "Chill",       icon = "shield", color = BLUE,   desc = "Your blue die counts N less this turn."},
+    drain      = {name = "Drain",       icon = "heal",   color = RED,    desc = "Heals as much as he hurts you this turn."},
+    curse      = {name = "Curse",       icon = "skull",  color = PURPLE, desc = "Your hand's mult drops by N this turn (never below 1)."},
+    spikes     = {name = "Spikes",      icon = "^",      color = GREEN,  desc = "If you hurt him this turn, you take N back."},
+    smash      = {name = "Smash",       icon = "shatter", color = RED,   desc = "Breaks all your block before he hits."},
+    double     = {name = "Double Strike", icon = "sword", color = RED,   desc = "He hits you a second time for half."},
+    shroud     = {name = "Shroud",      icon = "eye",    color = PURPLE, desc = "He takes half damage from your hand this turn."},
+    blight     = {name = "Blight",      icon = "skull",  color = GREEN,  desc = "Your healing does nothing this turn."},
+    bloodlust  = {name = "Bloodlust",   icon = "flame",  color = RED,    desc = "+N damage while he's below half nerve."},
+    confuse    = {name = "Confuse",     icon = "<>",     color = GOLD,   desc = "Your attack and defense trade places this turn."},
     -- signature faces (bonus is flat extra damage)
     flop      = {name = "Belly Flop",     icon = "crown", color = GOLD, sig = true, desc = "Signature move."},
     stacked   = {name = "Stacked Deck",   icon = "crown", color = GOLD, sig = true, desc = "Signature move."},
@@ -420,12 +506,13 @@ data.RACE_ORDER = {"human", "dwarf", "gnome", "highelf", "woodelf", "halfling", 
 -- draft and as spoils). Commons appear twice in a pool, so they turn up twice as often.
 data.CLASSES = {
     warrior = {name = "Warrior", title = "Steel and stubbornness", icon = "shield", color = {0.90, 0.35, 0.30},
-        perk = "+8 max nerve, and you start every turn with 6 block.", hp = 8, block = 6,
+        perk = "+12 max nerve, and you start every turn with 8 block.", hp = 12, block = 8,
         die = {f("power", 2), f("fortify", 2), f("berserk", 3), f("mend", 2), f("blank"), f("blank")},
         pool = {
             f("power", 3), f("power", 3), f("fortify", 3), f("fortify", 3), f("balance", 2), f("balance", 2),
             f("mend", 2), f("berserk", 6), f("thorns", 1), f("laststand", 2), f("ram", 2), f("rally", 2),
             f("sunder", 6), f("shatter", 4), f("growth", 1), f("bank", 2), f("daze", 8), f("leech", 3), f("wind", 5),
+            f("bulwark", 3), f("counter", 1), f("shieldbash", 2), f("steadfast", 1),
         }},
     mage    = {name = "Mage", title = "Bends the odds", icon = "star", color = {0.55, 0.45, 0.95},
         perk = "Every hand you play gets +1 mult.", mult = 1,
@@ -434,6 +521,7 @@ data.CLASSES = {
             f("resonance", 4), f("resonance", 4), f("lucky", 2), f("lucky", 2), f("mend", 2), f("spare", 1),
             f("wild"), f("twin"), f("mirror", 1), f("flip", 2), f("chain", 1), f("ladder", 1), f("roller", 1),
             f("calm", 1), f("longodds", 2), f("reprise", 1), f("poison", 3), f("cleanse", 3),
+            f("arcane", 4), f("focus", 1), f("frost", 3), f("overload"),
         }},
     rogue   = {name = "Rogue", title = "Strikes first", icon = "eye", color = {0.40, 0.75, 0.45},
         perk = "+1 reroll each turn. Your first hand of every duel deals x1.3 attack.", rerolls = 1, firstStrike = 1.3,
@@ -442,6 +530,7 @@ data.CLASSES = {
             f("spare", 1), f("spare", 1), f("coin", 3), f("coin", 3), f("power", 3), f("crit", 5), f("bleed", 2),
             f("pickpocket", 3), f("hoard", 5), f("gamble", 3), f("underdog", 2), f("oddluck", 1), f("vampire", 4),
             f("weaken", 5), f("poison", 3), f("shatter", 4),
+            f("shiv", 4), f("loaded", 6), f("envenom", 2), f("evasion", 1),
         }},
 }
 data.CLASS_ORDER = {"warrior", "mage", "rogue"}
@@ -458,9 +547,26 @@ function data.trait(run, key)
     return total
 end
 
--- The modifier faces this run can find: its class's pool
+-- Every race and weapon has a face of its own that joins its class's pool (twice, so it turns up)
+data.RACE_FACES = {
+    human = f("adaptable", 1), dwarf = f("stoneskin", 3), gnome = f("gadget", 1), highelf = f("spellweave", 1),
+    woodelf = f("huntermark", 3), halfling = f("luckybreak", 1), goliath = f("boulder", 3), tauren = f("earthshake", 3),
+    tiefling = f("hellfire", 4),
+}
+data.WEAPON_FACES = {
+    greatsword = f("overhead", 1), axe = f("rend", 3), hammer = f("quake", 3), aegis = f("shieldwall", 3),
+    grimoire = f("pagepower", 2), staff = f("leyline", 1), wand = f("missile", 2), sceptre = f("starfall", 2),
+    rapier = f("flurry", 2), daggers = f("twinfang", 3), sai = f("catchblade", 3), bow = f("aimedshot", 2),
+    shuriken = f("starfan", 2), cannon = f("powderkeg"),
+}
+
+-- The modifier faces this run can find: its class's pool, plus its race's and weapon's own faces
 function data.modPool(run)
-    return (data.CLASSES[run.class or ""] or data.CLASSES.warrior).pool
+    local pool = {unpack((data.CLASSES[run.class or ""] or data.CLASSES.warrior).pool)}
+    for _, extra in ipairs({data.RACE_FACES[run.race or ""], data.WEAPON_FACES[run.weapon or ""]}) do
+        pool[#pool + 1], pool[#pool + 2] = extra, extra
+    end
+    return pool
 end
 
 -- Applies a race's, class's or background's set-up passives to the run: nerve, die faces, gold, rerolls,
@@ -561,19 +667,21 @@ data.WEAPONS = {
     greatsword = {name = "Greatsword", title = "All or nothing", class = "warrior", color = {0.98, 0.75, 0.30}, artH = 118,
         perk = "-2 max nerve. Red die: 1, 1, 4, 6, 6. Huge swings.", hp = -2, red = faces("sword", 1, 1, 4, 6, 6, 0)},
     axe        = {name = "Battle Axe", title = "Swing first", class = "warrior", color = {0.30, 0.70, 0.60}, artH = 118,
-        perk = "Red die: 2, 3, 4, 5, 5.", red = faces("sword", 2, 3, 4, 5, 5, 0),
+        perk = "Red die: 2, 3, 4, 5, 6. Every hand that attacks deals x1.25 damage, then +3.",
+        red = faces("sword", 2, 3, 4, 5, 6, 0), atkFlat = 3, atkPct = 0.25,
         unlock = "Win 5 duels", wins = 5},
     hammer     = {name = "War Hammer", title = "Rings their bell", class = "warrior", color = {0.35, 0.80, 0.75}, artH = 118,
         perk = "-3 max nerve. Rivals stagger at 40% less damage.", hp = -3, stagger = 0.6,
         unlock = "Defeat Taurion and Grimstone", beat = {"minotaur", "gargoyle"}},
     aegis      = {name = "Sword and Shield", title = "Steady and sure", class = "warrior", color = {0.40, 0.55, 0.95}, artH = 114,
-        perk = "+12 max nerve. Blue die: 3, 3, 4, 4, 5.", hp = 12, blue = faces("shield", 3, 3, 4, 4, 5, 0),
+        perk = "+16 max nerve. Blue die: 3, 3, 4, 4, 5. +3 block every turn.", hp = 16, block = 3,
+        blue = faces("shield", 3, 3, 4, 4, 5, 0),
         unlock = "Defeat Count Vesper", beat = {"vampire"}},
     -- the Mage's
     grimoire   = {name = "Grimoire", title = "Forbidden pages", class = "mage", color = {0.30, 0.85, 0.55}, artH = 118,
         perk = "-4 max nerve. Every 3rd turn your hand deals x2 attack.", hp = -4, runeEvery = 3},
     staff      = {name = "Staff", title = "Bends the dice", class = "mage", color = {0.40, 0.65, 1.00}, artH = 114,
-        perk = "Your first mixed die becomes a red die, your second a blue die (blanks and all).", staff = true,
+        perk = "-8 max nerve. Your first mixed die becomes a red die, your second a blue die.", hp = -8, staff = true,
         unlock = "Win 5 duels", wins = 5},
     wand       = {name = "Wand", title = "A spark at every cast", class = "mage", color = {0.60, 0.45, 1.00}, artH = 118,
         perk = "-2 max nerve. Every hand that attacks deals +4 damage.", hp = -2, atkFlat = 4,
@@ -721,11 +829,30 @@ data.CHARMS = {
         desc = "+15 max nerve. Recover 15 nerve after each duel."},
     piggy    = {name = "Dragon's Purse",    icon = "coin",   color = GOLD,   price = 5,
         desc = "Comes with 10 gold. After a duel, +1 gold for every 3 you hold (max 10)."},
+    compass  = {name = "Wayfarer's Compass", icon = "star", color = GOLD,   price = 6,
+        desc = "+1 reroll every turn. +3 gold after every duel."},
+    ironring = {name = "Ring of the Iron Oath", icon = "shield", color = BLUE, price = 7,
+        desc = "Start every turn with 5 block."},
+    hourglass = {name = "Moonlit Hourglass", icon = "halo", color = PURPLE, price = 7,
+        desc = "Every 4th turn, your hand deals x2 attack and x2 defense."},
+    ember    = {name = "Hearthstone Ember", icon = "flame", color = RED,    price = 6,
+        desc = "Recover 2 nerve at the start of every turn."},
+    signet   = {name = "Merchant Prince's Signet", icon = "coin", color = GOLD, price = 5,
+        desc = "Relics and drinks cost 30% less (rounded up)."},
+    horn     = {name = "Stormcaller's Horn", icon = "bubble", color = BLUE,  price = 7,
+        desc = "Your first hand of every duel deals x2 attack."},
     crown    = {name = "Thornbriar Circlet", icon = "halo",   color = GREEN,  price = 6,
         desc = "Rivals take all the damage they deal to you."},
 }
 data.CHARM_ORDER = {"bones", "idol", "clover", "snake", "seven", "knuckles", "tower", "streak", "fang", "pact",
-    "cup", "axe", "phoenix", "weighted", "stomach", "piggy", "crown"}
+    "cup", "axe", "phoenix", "weighted", "stomach", "piggy", "crown", "compass", "ironring", "hourglass", "ember",
+    "signet", "horn"}
+
+-- What a relic costs this run: the Merchant Prince's Signet takes 30% off
+function data.charmPrice(id, run)
+    local price = data.CHARMS[id].price
+    return run.hasCharm("signet") and math.ceil(price * 0.7) or price
+end
 data.MAX_CHARMS = 5
 
 ---------------------------------------------------------------------------
@@ -1228,6 +1355,39 @@ do
     for id, def in pairs(E.rivals) do data.RIVALS[id] = def end
     for id, k in pairs(E.kinds) do data.KINDS[id] = k end
     data.REGIONS, data.LAIRS = E.regions, E.lairs
+end
+
+-- The newer tricks, each worked into the monsters that suit it: it takes the place of a blank on
+-- whichever of their trick dice has the most blanks left (or that die's last face, if none has one)
+data.TRICK_ADDS = {
+    {kind = "chill", value = 2, rivals = {"frostelf", "frostelemental", "frostgiant", "yeti", "penguin", "ranger", "polarbear"}},
+    {kind = "drain", value = 0, rivals = {"vampire", "bats", "deathknight", "lich", "toad", "purplewurm", "werewolf"}},
+    {kind = "curse", value = 1, rivals = {"hag", "archwitch", "cultists", "mummy", "devil", "lamppost", "cursedhero", "medusa"}},
+    {kind = "spikes", value = 3, rivals = {"beetle", "thornbear", "treefolk", "scorpion", "guardian", "colossus", "golem", "sentinel"}},
+    {kind = "smash", value = 0, rivals = {"cyclops", "ogre", "orc", "trex", "firegiant", "riot", "frostgiant"}},
+    {kind = "double", value = 0, rivals = {"wolf", "monkeys", "werewolf", "manticore", "assassin", "butcher", "darkelf"}},
+    {kind = "shroud", value = 0, rivals = {"mirage", "sandstorm", "ravenborn", "fallenangel", "sphinx", "genie", "kraken"}},
+    {kind = "blight", value = 0, rivals = {"plague", "rat", "fungus", "locusts", "triskeleton", "archdemon", "guardcaptain"}},
+    {kind = "bloodlust", value = 4, rivals = {"gnoll", "lizard", "wurm", "yeti", "purplewurm", "dragon", "reindeer"}},
+    {kind = "confuse", value = 0, rivals = {"firefly", "triceratops", "younggod", "mayor", "devil", "bandit", "goblin"}},
+}
+for _, add in ipairs(data.TRICK_ADDS) do
+    for _, id in ipairs(add.rivals) do
+        local dice = data.RIVALS[id].dice
+        local best, bestBlanks = dice[3], -1
+        for i = 3, #dice do
+            local blanks = 0
+            for _, face in ipairs(dice[i]) do
+                if face.kind == "blank" then blanks = blanks + 1 end
+            end
+            if blanks > bestBlanks then best, bestBlanks = dice[i], blanks end
+        end
+        local slot = #best
+        for j, face in ipairs(best) do
+            if face.kind == "blank" then slot = j break end
+        end
+        best[slot] = f(add.kind, add.value)
+    end
 end
 data.LOCATION_ORDER = {"grassland", "hills", "forest", "swamp", "desert", "trail", "cave", "dungeon", "ruins",
     "graveyard", "village", "city", "tundra", "mountain"}
