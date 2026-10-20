@@ -81,6 +81,10 @@ local function modIndex() return #run.dice end
 
 local function leave()
     sfx.play("click")
+    -- the campaign opens with Act I's story, then the first choice of where to go
+    if run.mode == "campaign" then
+        return require("story").play({run.chapter().intro}, function() scene.go("route") end)
+    end
     scene.go("map")
 end
 

@@ -1,5 +1,5 @@
 -- Millbrook: the peasant's home between campaign runs. Spend glory on permanent upgrades,
--- then set out down the Wild Road again.
+-- then set out on another three-act run.
 
 local data = require("data")
 local gfx = require("gfx")
@@ -32,8 +32,7 @@ function village.enter()
     time, pops = 0, {}
     for i in ipairs(data.VILLAGE) do pops[i] = {sc = 1} end
     buttons = {
-        go = {x = 12, y = 258, w = 132, h = 26, label = "WILD ROAD", color = {0.62, 0.40, 0.14}},
-        go2 = {x = 12, y = 290, w = 132, h = 26, label = "BLIGHTED MARCH", color = {0.30, 0.42, 0.28}},
+        go = {x = 12, y = 290, w = 132, h = 26, label = "SET OUT", color = {0.62, 0.40, 0.14}},
         back = {x = 12, y = 324, w = 132, h = 22, label = "TITLE", color = PAL.blue},
     }
 end
@@ -58,22 +57,14 @@ local function buy(i)
     sfx.play("mult", 1.2)
 end
 
-local function setOut(act)
-    if not campaign.hasAct(act) then return sfx.play("block", 0.7) end
+local function setOut()
     sfx.play("roll")
-    campaign.newRun(act)
-    -- the first trip into the March opens with its story
-    if act == 2 and not campaign.state().seenAct2 then
-        campaign.state().seenAct2 = true
-        campaign.write()
-        return require("story").play(data.CHAPTERS[2].story.intro, function() scene.go("outfit") end)
-    end
+    campaign.newRun()
     scene.go("outfit")
 end
 
 function village.mousepressed(x, y)
-    if gfx.inside(buttons.go, x, y) then return setOut(1) end
-    if gfx.inside(buttons.go2, x, y) then return setOut(2) end
+    if gfx.inside(buttons.go, x, y) then return setOut() end
     if gfx.inside(buttons.back, x, y) then
         sfx.play("click")
         return scene.go("title")
@@ -83,7 +74,7 @@ function village.mousepressed(x, y)
     end
 end
 
--- Autoplay: buy the cheapest affordable upgrade, otherwise set out down the furthest road open
+-- Autoplay: buy the cheapest affordable upgrade, otherwise set out
 function village.auto()
     local best, bestCost
     for i, u in ipairs(data.VILLAGE) do
@@ -91,7 +82,7 @@ function village.auto()
         if cost and cost <= campaign.state().glory and (not bestCost or cost < bestCost) then best, bestCost = i, cost end
     end
     if best then return buy(best) end
-    setOut(campaign.hasAct(2) and 2 or 1)
+    setOut()
 end
 
 function village.draw()
@@ -106,14 +97,11 @@ function village.draw()
     gfx.panel(x + 6, 56, w - 12, 30, PAL.panelHi, 4)
     gfx.icon("star", x + 22, 71, 16, PAL.gold)
     gfx.print(save.glory .. " glory", cx + 8, 63, "med", PAL.gold, "center", w)
-    gfx.print("Runs: " .. save.runs .. "\nCleared: I x" .. save.clears .. ", II x" .. (save.clears2 or 0), cx, 92,
-        "small", PAL.grey, "center", w)
-    gfx.print("Every run, choose a\nrace and a class.\nYour village's gifts\ncome with you.", cx, 150, "small",
+    gfx.print("Runs: " .. save.runs .. "\nActs cleared: I x" .. save.clears .. ", II x" .. (save.clears2 or 0)
+        .. "\nCampaigns won: " .. (save.clears3 or 0), cx, 92, "small", PAL.grey, "center", w)
+    gfx.print("Every run, choose a\nrace and a class.\nYour village's gifts\ncome with you.", cx, 160, "small",
         PAL.grey, "center", w)
-    local open2 = campaign.hasAct(2)
-    buttons.go2.enabled = open2
     gfx.button(buttons.go, scene.mx, scene.my)
-    gfx.button(buttons.go2, scene.mx, scene.my)
     gfx.button(buttons.back, scene.mx, scene.my)
 
     gfx.fancy("MILLBROOK'S GIFTS", FIELD_X, 34, "big", PAL.cream, 1, math.sin(time * 1.5) * 0.02, 1, time)
@@ -146,11 +134,8 @@ function village.draw()
         if hot then tip = u end
     end
     if gfx.inside(buttons.go, scene.mx, scene.my) then
-        gfx.print("Chapter I: the Wild Road, to Count Vesper's castle.", FIELD_X, 342, "small", PAL.cream, "center", 460)
-    elseif gfx.inside(buttons.go2, scene.mx, scene.my) then
-        gfx.print(open2 and "Chapter II: the Blighted March, to the Lich King's throne. More glory per win."
-            or "Chapter II is locked. Clear the Wild Road to open it.", FIELD_X, 342, "small",
-            open2 and PAL.cream or PAL.grey, "center", 460)
+        gfx.print("Three acts, eight locations of your choosing, and a great power at the end of each act.",
+            FIELD_X, 342, "small", PAL.cream, "center", 460)
     elseif tip then
         gfx.print(tip.desc, FIELD_X, 342, "small", PAL.cream, "center", 460)
     else

@@ -37,29 +37,41 @@ local function visited(r, i)
     return run.path and run.path[r] == i
 end
 
--- A mystery stop is decided as you step on it: an ambush, a hidden bazaar or a dice shrine
-local function mystery(r)
-    local ch, roll = run.chapter(), math.random()
+-- What a mystery stop holds was decided with the map (so the scout can reveal it): an ambush, a hidden
+-- bazaar, the dice shrine, or a stranger with something to offer
+local function mystery(node)
+    local s = node.secret
+    if s.kind == "npc" then
+        run.npc = s.npc
+        return scene.go("npc")
+    end
     local page, nextScene
-    if roll < 0.34 then
-        local pool = ch.pools[r <= 3 and 1 or 2]
-        local id = pool[math.random(#pool)]
-        run.rival = id
-        page = {title = "AMBUSH!", art = id, bg = (ch.stops[id] or {}).bg,
-            text = "A shape bursts from cover. " .. data.RIVALS[id].name .. " has been stalking you, "
+    if s.kind == "ambush" then
+        run.rival = s.rival
+        page = {title = "AMBUSH!", art = s.rival, bg = run.location,
+            text = "A shape bursts from cover. " .. data.RIVALS[s.rival].name .. " has been stalking you, "
                 .. "and there's no running now."}
         nextScene = "duel"
-    elseif roll < 0.67 then
+    elseif s.kind == "bazaar" then
         run.bazaar = true
-        page = {title = "A HIDDEN BAZAAR", bg = "forest", text = "Lanterns in the trees, far from any road: a whole caravan of "
-            .. "traders, their carts heaped with strange wares. More than any peddler carries."}
+        page = {title = "A HIDDEN BAZAAR", bg = run.location, text = "Lanterns in the dark, far from any road: a whole "
+            .. "caravan of traders, their carts heaped with strange wares. More than any peddler carries."}
         nextScene = "shop"
     else
-        page = {title = "THE DICE SHRINE", bg = "ruins", text = "A mossy stone shrine with a carved dice-cup. The inscription "
-            .. "reads: ROLL TRUE AND BE BLESSED. ROLL FALSE AND BLEED."}
+        page = {title = "THE DICE SHRINE", bg = run.location, text = "A mossy stone shrine with a carved dice-cup. The "
+            .. "inscription reads: ROLL TRUE AND BE BLESSED. ROLL FALSE AND BLEED."}
         nextScene = "trial"
     end
     require("story").play({page}, function() scene.go(nextScene) end)
+end
+
+-- What the scout said a mystery stop holds
+local function secretText(s)
+    if s.kind == "ambush" then return "An ambush by " .. data.RIVALS[s.rival].name .. "." end
+    if s.kind == "bazaar" then return "A hidden bazaar: five relics for sale." end
+    if s.kind == "shrine" then return "The dice shrine: a test of luck." end
+    local npc = data.NPCS[s.npc]
+    return npc.name .. ", " .. npc.title .. "."
 end
 
 local function enter(r, i)
@@ -77,14 +89,11 @@ local function enter(r, i)
         end
     end
     if run.mode ~= "campaign" then return go() end
-    if node.kind == "mystery" then return mystery(r) end
-    -- campaign stops tell their bit of the story first
-    local ch = run.chapter()
-    local stop = ch.road and ch.road[r] or (node.rival and ch.stops[node.rival])
-    local places = ch.places and ch.places[node.kind]
-    if not stop and places then stop = places[math.random(#places)] end
-    if stop and stop.story then
-        return require("story").play({{title = stop.title, text = stop.story, art = node.rival, bg = stop.bg}}, go)
+    if node.kind == "mystery" then return mystery(node) end
+    -- a location's elite is introduced first (the boss was, on the way into its lair)
+    local def = node.rival and data.RIVALS[node.rival]
+    if node.kind == "elite" and def.intro then
+        return require("story").play({{title = def.name:upper(), text = def.intro, art = node.rival, bg = run.location}}, go)
     end
     go()
 end
@@ -101,6 +110,14 @@ end
 function map.enter()
     scene.bg, scene.dim = gfx.BG.map, 0.72
     time = 0
+    -- back from a location's last stop, its elite: the location is cleared, choose where next
+    if run.mode == "campaign" and run.mapDone() and not run.lair then
+        local loc, def = data.LOCATIONS[run.location], data.RIVALS[run.map[run.row][run.col].rival]
+        return require("story").play({{title = loc.name:upper() .. " CLEARED", bg = run.location,
+            text = "You leave the " .. loc.name:lower() .. " behind you. " .. def.name .. " won't be troubling "
+                .. "anyone again, and your dice feel a little luckier for it."}}, function() scene.go("route") end)
+    end
+    if run.mode == "campaign" then scene.backdrop, scene.dim = run.location, 0.78 end
 end
 
 function map.update(dt)
@@ -131,19 +148,27 @@ local NODE_HELP = {
     elite = "A dangerous rival with a fat purse.",
     hearth = "Rest, or sharpen a face.",
     shop = "Relics and drinks for sale.",
-    mystery = "Who knows? A fight, a hidden bazaar, or a test of luck.",
+    mystery = "Who knows? A fight, a stranger, a hidden bazaar, or a test of luck.",
     boss = "The champion of the circuit.",
 }
 
+local function nodeHelp(node)
+    if node.rival then return data.RIVALS[node.rival].title .. (node.kind == "elite" and " (two trick dice)"
+        or node.kind == "boss" and " (three trick dice)" or "") end
+    if node.secret and run.scout then return "The scout says: " .. secretText(node.secret) end
+    return NODE_HELP[node.kind]
+end
+
 function map.draw()
     ui.tip = nil
-    ui.sidebar(run.mode == "campaign" and "CAMPAIGN" or "THE CIRCUIT", run.venue(), {0.30, 0.22, 0.45})
+    local campaign = run.mode == "campaign"
+    ui.sidebar(campaign and run.chapter().name or "THE CIRCUIT", run.venue(), {0.30, 0.22, 0.45})
     ui.gold(80)
     local x = ui.SB.x
     gfx.print("LEGEND", x + 10, 116, "small", PAL.grey)
     local y = 132
     local kinds = {"duel", "elite", "hearth", "shop", "boss"}
-    if run.mode == "campaign" and run.chapter().mystery then table.insert(kinds, 5, "mystery") end
+    if campaign then table.insert(kinds, 5, "mystery") end
     for _, kind in ipairs(kinds) do
         local t = data.NODE_TYPES[kind]
         gfx.icon(t.icon, x + 20, y + 6, 14, t.color)
@@ -204,8 +229,7 @@ function map.draw()
     if hr then
         local node = run.map[hr][hi]
         local t = data.NODE_TYPES[node.kind]
-        ui.tip = {title = nodeLabel(node), desc = node.rival and data.RIVALS[node.rival].title or NODE_HELP[node.kind],
-            color = t.color}
+        ui.tip = {title = nodeLabel(node), desc = nodeHelp(node), color = t.color}
     end
     ui.charmRow(176, 26)
     ui.drawTip()

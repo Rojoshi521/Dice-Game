@@ -121,20 +121,17 @@ function campaign.seeIntro()
     campaign.write()
 end
 
--- clears counts the Wild Road (classes unlock by it), clears2 the Blighted March
+-- An act's boss beaten: clears counts Act I, clears2 Act II and clears3 Act III (a whole campaign won)
 function campaign.cleared(act)
-    local key = act == 2 and "clears2" or "clears"
+    local key = act == 1 and "clears" or ("clears" .. act)
     campaign.state()[key] = (save[key] or 0) + 1
     campaign.write()
 end
 
--- Chapter two opens once the Wild Road has been cleared
-function campaign.hasAct(act) return act == 1 or campaign.state().clears >= 1 end
-
--- A fresh peasant's run down chapter act's road, shaped by every upgrade bought so far
-function campaign.newRun(act)
+-- A fresh peasant's run from Act I, shaped by every upgrade bought so far
+function campaign.newRun()
     local L = campaign.level
-    run.new("campaign", act)
+    run.new("campaign")
     campaign.state().runs = save.runs + 1
     campaign.write()
     run.maxHp = data.PEASANT_HP + 6 * L("tough")
@@ -159,7 +156,7 @@ end
 -- From the title screen: the prologue the first time, then home to Millbrook
 function campaign.begin()
     if campaign.state().seenIntro then return require("scene").go("village") end
-    require("story").play(data.CAMPAIGN.story.intro, function()
+    require("story").play(data.CAMPAIGN_STORY.intro, function()
         campaign.seeIntro()
         require("scene").go("village")
     end)

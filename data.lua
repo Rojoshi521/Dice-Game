@@ -145,7 +145,7 @@ data.KINDS = {
     smite     = {name = "Divine Smite",   icon = "crown", color = GOLD, sig = true, bonus = 6, desc = "Signature: +6 damage and heals 6."},
     harvest   = {name = "Grave Harvest",  icon = "crown", color = GOLD, sig = true, desc = "Signature: adds 3 rot."},
     finale    = {name = "Grand Finale",   icon = "crown", color = GOLD, sig = true, bonus = 6, desc = "Signature: +6 damage."},
-    -- the Wild Road
+    -- campaign monsters' signatures
     stab      = {name = "Stab and Run",   icon = "crown", color = GOLD, sig = true, bonus = 3, desc = "Signature: +3 damage."},
     ambush    = {name = "Ambush",         icon = "crown", color = GOLD, sig = true, bonus = 5, desc = "Signature: +5 damage."},
     cleave    = {name = "Cleave",         icon = "crown", color = GOLD, sig = true, bonus = 6, desc = "Signature: +6 damage."},
@@ -156,7 +156,7 @@ data.KINDS = {
         desc = "Signature: +7 damage that ignores your guard."},
     feast     = {name = "Blood Feast",    icon = "crown", color = GOLD, sig = true, bonus = 6,
         desc = "Signature: +6 damage and heals 6."},
-    -- more of the Wild Road. heal, rot, hexes, pierce and bash are what a signature does besides its bonus
+    -- heal, rot, hexes, pierce and bash are what a signature does besides its bonus
     engulf    = {name = "Engulf",         icon = "crown", color = GOLD, sig = true, bonus = 3, heal = 4,
         desc = "Signature: +3 damage and heals 4."},
     pounce    = {name = "Pounce",         icon = "crown", color = GOLD, sig = true, bonus = 4, pierce = true,
@@ -172,7 +172,6 @@ data.KINDS = {
         desc = "Signature: +5 damage that ignores your guard."},
     stoneslam = {name = "Stone Slam",     icon = "crown", color = GOLD, sig = true, bonus = 2, bash = true,
         desc = "Signature: +2 damage, plus his remaining guard."},
-    -- the Blighted March
     miasma    = {name = "Miasma",         icon = "crown", color = GOLD, sig = true, bonus = 3, rot = 2,
         desc = "Signature: +3 damage and adds 2 rot."},
     sporeburst = {name = "Sporeburst",    icon = "crown", color = GOLD, sig = true, bonus = 4, heal = 6,
@@ -894,22 +893,22 @@ data.RIVALS = {
         },
         signature = {f("sword", 2), f("shield", 3), f("harvest", 2)},
     },
-    -- the Wild Road (campaign chapter one)
+    -- campaign monsters (the rest, and where each one lurks, are in enemies.lua)
     goblin = {
-        name = "Snik", title = "Goblin Cheat", hp = 18, gold = 7, dieColor = {0.30, 0.38, 0.16},
+        name = "Snik", title = "Goblin Cheat", hp = 24, gold = 7, dieColor = {0.30, 0.38, 0.16},
         quote = "Hehehe! Shiny dice! Snik plays fair. Snik promise. Hehe.",
         tell = "Snik giggles and fiddles with a sleeve...", sigLine = "STAB 'N' RUN!",
         hitLines = {"Ow! Cheater!", "Not the face!", "Eep!"}, koLine = "Snik... wasn't... cheating...",
         every = 3, stagger = 7,
         dice = {
-            {f("sword", 1), f("sword", 1), f("sword", 2), f("sword", 2), f("sword", 3), f("blank")},
+            {f("sword", 1), f("sword", 2), f("sword", 2), f("sword", 3), f("sword", 3), f("blank")},
             {f("shield", 1), f("shield", 1), f("shield", 2), f("blank"), f("blank"), f("blank")},
             {f("sleight"), f("sand"), f("plunder", 1), f("flick"), f("blank"), f("plunder", 2)},
         },
         signature = {f("sword", 3), f("shield", 1), f("stab", 3)},
     },
     bandit = {
-        name = "Rook", title = "Highway Bandit", hp = 24, gold = 10, dieColor = {0.22, 0.30, 0.20},
+        name = "Rook", title = "Highway Bandit", hp = 30, gold = 10, dieColor = {0.22, 0.30, 0.20},
         quote = "Your purse or your nerve, friend. Your choice. Both is fine too.",
         tell = "Rook whistles. Something rustles in the trees...", sigLine = "NOW, LADS! AMBUSH!",
         hitLines = {"Lucky shot.", "Tch!", "You'll pay for that."}, koLine = "Run... take the road...",
@@ -971,8 +970,11 @@ data.RIVALS = {
             {f("sword", 3), f("sword", 3), f("sword", 3), f("sword", 4), f("sword", 5), f("sword", 6)},
             {f("shield", 2), f("shield", 2), f("shield", 3), f("shield", 3), f("shield", 4), f("blank")},
             {f("brace"), f("riposte", 3), f("rage", 1), f("fury", 3), f("blank"), f("steady")},
+            {f("rage", 1), f("fury", 2), f("brace"), f("taunt", 2), f("blank"), f("blank")},
         },
         signature = {f("sword", 5), f("shield", 2), f("gore", 5)},
+        intro = "The road sinks into the ruins of an old labyrinth. Something huge breathes in the dark. "
+            .. "Taurion has guarded these halls for a hundred years.",
     },
     vampire = {
         name = "Count Vesper", title = "The Crimson Count", hp = 90, gold = 0, boss = true,
@@ -985,30 +987,34 @@ data.RIVALS = {
             {f("sword", 2), f("sword", 3), f("sword", 3), f("sword", 4), f("sword", 4), f("sword", 5)},
             {f("shield", 2), f("shield", 2), f("shield", 3), f("shield", 3), f("shield", 4), f("shield", 4)},
             {f("hex"), f("wither", 2), f("channel", 1), f("sanctify"), f("wither", 3), f("hex")},
+            {f("mend", 3), f("channel", 1), f("sleight"), f("rage", 1), f("blank"), f("mend", 2)},
+            {f("wither", 2), f("brace"), f("echo"), f("rot", 1), f("blank"), f("blank")},
         },
         signature = {f("sword", 4), f("shield", 3), f("feast", 4)},
+        intro = "Castle Vesper looms out of the graveyard mist. In the great hall, a table is set with crimson "
+            .. "dice. The Count smiles. \"Sit. Let us play for everything you love.\"",
     },
     slime = {
-        name = "Gloop", title = "Ditch Slime", hp = 20, gold = 7, dieColor = {0.20, 0.45, 0.65},
+        name = "Gloop", title = "Ditch Slime", hp = 26, gold = 7, dieColor = {0.20, 0.45, 0.65},
         quote = "*blorp* ...dice? *BLORP!*",
         tell = "Gloop swells up, bubbling...", sigLine = "*GLORRRP!* ENGULF!",
         hitLines = {"*splut*", "*wobble*", "*squelch*"}, koLine = "*...puddle...*",
         every = 3, stagger = 7,
         dice = {
-            {f("sword", 1), f("sword", 1), f("sword", 2), f("sword", 2), f("sword", 3), f("blank")},
+            {f("sword", 1), f("sword", 2), f("sword", 2), f("sword", 3), f("sword", 3), f("blank")},
             {f("shield", 1), f("shield", 2), f("shield", 2), f("shield", 3), f("blank"), f("blank")},
             {f("mend", 2), f("nap"), f("brace"), f("hiccup", 1), f("mend", 1), f("blank")},
         },
         signature = {f("sword", 3), f("shield", 1), f("engulf", 3)},
     },
     wolf = {
-        name = "Greyfang", title = "Dire Wolf", hp = 22, gold = 8, dieColor = {0.38, 0.40, 0.44},
+        name = "Greyfang", title = "Dire Wolf", hp = 28, gold = 8, dieColor = {0.38, 0.40, 0.44},
         quote = "*A low growl. Yellow eyes. It nudges a bone die toward you with its nose.*",
         tell = "Greyfang crouches low, hackles raised...", sigLine = "*SNARL!* POUNCE!",
         hitLines = {"*yelp*", "*growl*", "*snap!*"}, koLine = "*...slinks into the dark...*",
         every = 3, stagger = 8,
         dice = {
-            {f("sword", 2), f("sword", 2), f("sword", 3), f("sword", 3), f("sword", 4), f("blank")},
+            {f("sword", 2), f("sword", 3), f("sword", 3), f("sword", 4), f("sword", 4), f("blank")},
             {f("shield", 1), f("shield", 1), f("shield", 2), f("blank"), f("blank"), f("blank")},
             {f("rage", 1), f("fury", 2), f("flick"), f("fury", 1), f("blank"), f("rage", 1)},
         },
@@ -1090,10 +1096,13 @@ data.RIVALS = {
             {f("sword", 2), f("sword", 3), f("sword", 3), f("sword", 4), f("sword", 4), f("sword", 5)},
             {f("shield", 3), f("shield", 3), f("shield", 4), f("shield", 4), f("shield", 5), f("shield", 6)},
             {f("brace"), f("aura", 1), f("steady"), f("bonewall", 1), f("brace"), f("blank")},
+            {f("riposte", 2), f("rage", 1), f("brace"), f("steady"), f("blank"), f("blank")},
         },
         signature = {f("sword", 4), f("shield", 5), f("stoneslam", 2)},
+        intro = "On a ruined bell tower, a statue turns its head toward you. Stone wings unfold with a "
+            .. "grinding crack.",
     },
-    -- the Blighted March (campaign chapter two)
+    -- more campaign monsters
     plague = {
         name = "Doctor Corvus", title = "The Plague Doctor", hp = 40, gold = 13, dieColor = {0.30, 0.28, 0.18},
         quote = "Hold still. This is for your own good. Mostly.",
@@ -1157,13 +1166,16 @@ data.RIVALS = {
             {f("sword", 3), f("sword", 3), f("sword", 4), f("sword", 4), f("sword", 5), f("sword", 6)},
             {f("shield", 2), f("shield", 2), f("shield", 3), f("shield", 3), f("shield", 4), f("blank")},
             {f("hex"), f("rot", 1), f("wither", 2), f("rage", 1), f("brace"), f("blank")},
+            {f("rot", 1), f("lock", 1), f("brace"), f("taunt", 2), f("blank"), f("blank")},
         },
         signature = {f("sword", 5), f("shield", 2), f("gaze", 4)},
+        intro = "A garden of statues: knights, farmers, children, all frozen mid-scream. Among them, something "
+            .. "scaled and rotting uncoils. Don't look, you tell yourself. Don't look.",
     },
     lich = {
-        name = "Malakar", title = "The Lich King", hp = 110, gold = 0, boss = true,
+        name = "Malakar", title = "The Lich King", hp = 100, gold = 0, boss = true,
         dieColor = {0.24, 0.16, 0.34},
-        quote = "Count Vesper was my servant, peasant. You broke my toy. Now I break you.",
+        quote = "Every soul in my kingdom is a wager I won. Sit, peasant. Let us add yours to the pile.",
         tell = "Blue flame gathers in Malakar's grimoire...", sigLine = "Your soul is FORFEIT!",
         hitLines = {"Flesh is so fragile.", "Amusing.", "I have died before."}, koLine = "My phylactery... no...!",
         every = 3, stagger = 24,
@@ -1171,8 +1183,12 @@ data.RIVALS = {
             {f("sword", 2), f("sword", 3), f("sword", 3), f("sword", 4), f("sword", 4), f("sword", 5)},
             {f("shield", 2), f("shield", 3), f("shield", 3), f("shield", 4), f("shield", 4), f("shield", 5)},
             {f("channel", 1), f("rot", 1), f("hex"), f("wither", 2), f("bonewall", 2), f("channel", 2)},
+            {f("rot", 1), f("lock", 1), f("debt"), f("sanctify"), f("blank"), f("hex")},
+            {f("bonewall", 1), f("wither", 3), f("echo"), f("channel", 1), f("blank"), f("blank")},
         },
         signature = {f("sword", 4), f("shield", 3), f("soulrend", 4)},
+        intro = "At the heart of the ruins, a crowned skeleton sits on a throne of skulls, a grimoire floating "
+            .. "open beside him. \"Shall we play,\" Malakar whispers, \"for your soul?\"",
     },
     bookmaker = {
         name = "The Bookmaker", title = "Keeper of the Odds", hp = 110, gold = 0, boss = true,
@@ -1203,166 +1219,88 @@ data.DUEL_POOLS = {
 data.ELITES = {"redgrave", "mortis"}
 data.BOSS = "bookmaker"
 
--- Campaign chapters: a fixed road of stops, walked bottom to top on the map. Each stop can
--- carry a story card that shows before it.
-data.CAMPAIGN = {
-    name = "THE WILD ROAD", act = "I", clearLine = "The Wild Road is safe... for now.",
-    power = 1.25, hpScale = 1.4,     -- monsters hit 25% harder and have 40% more nerve than tavern rivals
-    -- a branching map like the tavern's: rows 1-3 draw from the first pool, the rest from the second.
-    -- Every elite turns up somewhere, and mystery stops can hold an ambush, a bazaar or a dice shrine.
-    rows = 11, mystery = true, guaranteeElites = true,
-    pools = {
-        {"goblin", "slime", "bandit", "wolf", "gnoll"},
-        {"orc", "troll", "ogre", "lizard", "hag", "spider", "darkelf"},
+-- The campaign is one run through three acts. Each time, you choose where to go next from two
+-- locations; a location is a short branching map of its own monsters that ends at one of its elites.
+-- Act I clears two locations and Acts II and III three each, then each act ends at a boss's lair.
+-- Your dice, relics and nerve carry from act to act.
+do
+    local E = require("enemies")
+    for id, def in pairs(E.rivals) do data.RIVALS[id] = def end
+    for id, k in pairs(E.kinds) do data.KINDS[id] = k end
+    data.REGIONS, data.LAIRS = E.regions, E.lairs
+end
+data.LOCATION_ORDER = {"grassland", "hills", "forest", "swamp", "desert", "trail", "cave", "dungeon", "ruins",
+    "graveyard", "village", "city", "tundra", "mountain"}
+data.LOCATION_ROWS = 5        -- per location: rows of stops, the last one its elite
+data.LOCATION_CHOICES = 2     -- locations offered each time you choose where to go next
+data.LOCATION_RAMP = 0.15     -- each location after an act's first makes its rivals this much tougher
+
+data.ACTS = {
+    {name = "ACT I", title = "THE WILDS", locations = 2, bosses = {"vampire", "archwitch"},
+        power = 0.9, hpScale = 1.05, glory = {duel = 3, elite = 6, boss = 15},
+        intro = {bg = "grassland", title = "ACT I: THE WILDS", text = "Millbrook's fields fall away behind you. Ahead lie "
+            .. "the wilds, and somewhere beyond them waits the first of the great powers. Choose your road."},
+        clear = {bg = "trail", title = "ACT I CLEARED", text = "The first power falls, and word of it runs ahead of you. "
+            .. "You patch your coat, count your dice, and rest by the fire. You wake with your nerve restored."}},
+    {name = "ACT II", title = "THE DEEP COUNTRY", locations = 3, bosses = {"lich", "dragon"},
+        power = 2.3, hpScale = 3.0, bossScale = 0.8, glory = {duel = 5, elite = 10, boss = 25},
+        intro = {bg = "hills", title = "ACT II: THE DEEP COUNTRY", text = "The monsters grow bolder the further you go, "
+            .. "and they've heard about you now. Your dice are warm. Your relics hum. Keep rolling."},
+        clear = {bg = "mountain", title = "ACT II CLEARED", text = "The second power falls. The road ahead is strange: the "
+            .. "stars are wrong, and the maps simply stop. You sleep, and wake with your nerve restored."}},
+    {name = "ACT III", title = "THE EDGE OF THE WORLD", locations = 3, bosses = {"archdemon", "younggod"},
+        power = 3.8, hpScale = 4.8, bossScale = 0.62, glory = {duel = 7, elite = 14, boss = 40},
+        intro = {bg = "tundra", title = "ACT III: THE EDGE OF THE WORLD", text = "Beyond the deep country, the land runs "
+            .. "out. The last great power waits at the edge of the world, where the first dice were rolled."}},
+}
+
+data.CAMPAIGN_STORY = {
+    intro = {
+        {bg = "village", title = "MILLBROOK", text = "You were born in Millbrook, a muddy little village at the edge of the "
+            .. "wilds. You own a pitchfork, a patched coat, and a set of chipped dice that belonged to "
+            .. "your grandmother."},
+        {bg = "graveyard", title = "THE WILDS WAKE", text = "This autumn, the monsters came down out of the wilds. They "
+            .. "don't raid. They gamble. Every traveller is made to play, and every loser pays: in coin, in "
+            .. "harvest... or in blood."},
+        {bg = "village", title = "A FOOL'S ERRAND", text = "Last night the whole village harvest was wagered away to a goblin "
+            .. "with loaded dice. Somebody has to win it back. Nobody else volunteered."},
+        {bg = "trail", title = "THREE POWERS", text = "Three great powers rule the wilds, each at the end of a long road. "
+            .. "Beat them all and the world is safe. Lose, and you'll limp home to Millbrook. But every monster you "
+            .. "beat earns glory, and glory can make a peasant into something more."},
     },
-    elites = {"minotaur", "gargoyle"},
-    boss = "vampire",
-    -- where each monster is met: its story card and battle backdrop
-    stops = {
-        goblin = {bg = "grassland", title = "THE MILESTONE",
-            story = "A goblin squats by the milestone, shuffling cards it clearly didn't come by honestly. "
-                .. "Millbrook's grain sacks are piled up behind it."},
-        slime = {bg = "swamp", title = "THE DITCH",
-            story = "Something in the roadside ditch is wobbling. It has teeth. It also, somehow, has dice."},
-        bandit = {bg = "hills", title = "THE OLD BRIDGE",
-            story = "Past the old bridge, a grinning man steps out of the trees. \"Toll road, friend. "
-                .. "The toll is a game. And your purse.\""},
-        wolf = {bg = "village", title = "HOWLS AT DUSK",
-            story = "A grey shape pads out of the dusk, bigger than any wolf has a right to be. "
-                .. "It drops a bone die at your feet and growls."},
-        gnoll = {bg = "desert", title = "THE RAIDERS' CAMP",
-            story = "Cackling from the rocks. A gnoll raider squats on a heap of stolen goods, spear across its "
-                .. "knees. \"Play for it,\" it yips."},
-        orc = {bg = "trail", title = "WAR DRUMS",
-            story = "War drums. An orc of the Bloodtusk warband buries an axe in the stump in front of you "
-                .. "and sits down to play."},
-        troll = {bg = "swamp", title = "THE MIRE BRIDGE",
-            story = "The bridge over the Mire belongs to Mossjaw. Nobody crosses without a game, "
-                .. "and nobody has crossed in years."},
-        ogre = {bg = "mountain", title = "THE CAULDRON",
-            story = "The smell hits you first. Bruug the ogre has a cauldron, a cleaver and an empty stomach. "
-                .. "\"Dice first,\" he grunts. \"Then supper.\""},
-        lizard = {bg = "swamp", title = "THE REED HUTS",
-            story = "Stilted huts rise out of the reeds. A lizardfolk hunter blocks the boardwalk, tapping a "
-                .. "venom-slick spear on the planks."},
-        hag = {bg = "forest", title = "NETTLE'S COTTAGE",
-            story = "A crooked cottage, a bubbling pot, and an old woman who smiles far too widely. "
-                .. "\"Lost, dearie? Sit. Granny loves a game.\""},
-        spider = {bg = "cave", title = "THE SILK HOLLOW",
-            story = "Webs thick as rope fill the hollow. Something with too many eyes lowers itself from above, "
-                .. "clicking happily."},
-        darkelf = {bg = "dungeon", title = "THE UNDERWAY",
-            story = "A shortcut through the tunnels, the locals said. A dark elf waits in the gloom, a knife in "
-                .. "one hand and witchfire in the other."},
-        minotaur = {bg = "dungeon", title = "THE LABYRINTH",
-            story = "The road sinks into the ruins of an old labyrinth. Something huge breathes in the dark. "
-                .. "Taurion has guarded these halls for a hundred years."},
-        gargoyle = {bg = "ruins", title = "THE BELL TOWER",
-            story = "On the ruined bell tower, a statue turns its head toward you. Stone wings unfold with a "
-                .. "grinding crack."},
-        vampire = {bg = "graveyard", title = "CASTLE VESPER",
-            story = "Castle Vesper looms over the end of the road. In the great hall, a table is set with crimson "
-                .. "dice. The Count smiles. \"Sit. Let us play for everything you love.\""},
+    defeat = {
+        {bg = "village", title = "BACK TO MILLBROOK", text = "You wake in a hay cart rattling home, bruised and broke. But the "
+            .. "road remembers what you did, and so does Millbrook. Spend your glory, and go again."},
     },
-    -- one of these story cards shows before each shop or hearth
-    places = {
-        shop = {
-            {bg = "grassland", title = "A PEDDLER'S CART",
-                story = "A peddler's cart creaks along the road. \"Trinkets for a brave fool? Everything's for sale.\""},
-            {bg = "city", title = "A TINKER'S WAGON",
-                story = "A tinker's wagon, hung with pots and odd little trinkets. \"Everything works. Mostly.\""},
-        },
-        hearth = {
-            {bg = "forest", title = "A WAYSIDE SHRINE",
-                story = "An abandoned shrine with a fire still burning. You rest your aching hands."},
-            {bg = "village", title = "THE SHUTTERED INN",
-                story = "A roadside inn, shuttered against the night. The innkeeper lets you sit by the fire, for luck."},
-            {bg = "hills", title = "A SHEPHERD'S FIRE",
-                story = "A shepherd waves you over and shares his bread. The sheep watch you suspiciously."},
-        },
-    },
-    -- glory for each kind of win; you keep it even when you lose the run
-    glory = {duel = 3, elite = 6, boss = 15},
-    story = {
-        intro = {
-            {bg = "village", title = "MILLBROOK", text = "You were born in Millbrook, a muddy little village at the edge of the "
-                .. "Wild Road. You own a pitchfork, a patched coat, and a set of chipped dice that belonged to "
-                .. "your grandmother."},
-            {bg = "graveyard", title = "THE CRIMSON COUNT", text = "This autumn, Count Vesper's creatures came down the road. They "
-                .. "don't raid. They gamble. Every traveller is made to play, and every loser pays: in coin, in "
-                .. "harvest... or in blood."},
-            {bg = "village", title = "A FOOL'S ERRAND", text = "Last night the whole village harvest was wagered away to a goblin "
-                .. "with loaded dice. Somebody has to win it back. Nobody else volunteered."},
-            {bg = "trail", title = "THE ROAD", text = "Your grandmother always said the dice listen to those who keep rolling. "
-                .. "Lose, and you'll limp home to Millbrook. But every monster you beat earns glory, and glory "
-                .. "can make a peasant into something more."},
-        },
-        defeat = {
-            {bg = "village", title = "BACK TO MILLBROOK", text = "You wake in a hay cart rattling home, bruised and broke. But the "
-                .. "road remembers what you did, and so does Millbrook. Spend your glory, and go again."},
-        },
-        victory = {
-            {bg = "grassland", title = "THE ROAD IS FREE", text = "Count Vesper crumbles to ash as the sun rises over his tower. The "
-                .. "harvest comes home, the Wild Road opens, and Millbrook will tell this story for a hundred years."},
-            {bg = "tundra", title = "AND YET...", text = "Far beyond the road, in a place with no name, something has noticed "
-                .. "a peasant who never stops rolling."},
-        },
+    victory = {
+        {bg = "grassland", title = "THE WILDS ARE FREE", text = "The last great power falls, and all across the wilds the "
+            .. "monsters put away their dice. Millbrook's harvest comes home at last."},
+        {bg = "city", title = "THE PEASANT OF MILLBROOK", text = "Bards will argue for years about how a peasant with chipped "
+            .. "dice beat the powers of the world. You know the truth: you just kept rolling."},
     },
 }
 
--- Chapter two opens once the Wild Road has been cleared
-local MARCH = {
-    name = "THE BLIGHTED MARCH", act = "II", clearLine = "The Blighted March is cleansed.",
-    power = 1.25, hpScale = 1.3,
-    road = {
-        {kind = "duel", rival = "plague", bg = "city", title = "THE QUARANTINE LINE",
-            story = "Past the Wild Road, the land turns grey. A barricade of carts blocks the way, and behind it "
-                .. "stands a figure in a beaked mask. \"No one passes the quarantine,\" he says, \"without a check-up.\""},
-        {kind = "duel", rival = "fungus", bg = "forest", title = "THE ROTWOOD",
-            story = "The trees here are soft and spongy, crowned with mushrooms as big as cartwheels. "
-                .. "One of them stands up. It is wearing armour."},
-        {kind = "shop", bg = "graveyard", title = "A GRAVEDIGGER'S BARROW",
-            story = "A gravedigger leans on his shovel. \"Business is booming. Buy something before you're a customer?\""},
-        {kind = "duel", rival = "ranger", bg = "tundra", title = "THE PALE PASS",
-            story = "Hoofbeats echo through the pass, but no horse is breathing. A skeleton rider blocks the trail, "
-                .. "bow already drawn."},
-        {kind = "duel", rival = "wurm", bg = "dungeon", title = "THE OSSUARY PIT",
-            story = "The tunnels are lined with bones, and the bones are trembling. Something huge is burrowing "
-                .. "toward you."},
-        {kind = "hearth", bg = "mountain", title = "A HERMIT'S CANDLE",
-            story = "A hermit shares her soup and asks no questions. The candle burns all night."},
-        {kind = "elite", rival = "basilisk", bg = "ruins", title = "THE STONE GARDEN",
-            story = "A garden of statues: knights, farmers, children, all frozen mid-scream. Among them, something "
-                .. "scaled and rotting uncoils. Don't look, you tell yourself. Don't look."},
-        {kind = "hearth", bg = "graveyard", title = "THE LAST CHAPEL",
-            story = "A ruined chapel, its bell long silent. You pray to whatever is still listening."},
-        {kind = "boss", rival = "lich", bg = "ruins", title = "THE BONE THRONE",
-            story = "At the heart of the March, a crowned skeleton sits on a throne of skulls, a grimoire floating "
-                .. "open beside him. \"Shall we play,\" Malakar whispers, \"for your soul?\""},
-    },
-    glory = {duel = 5, elite = 10, boss = 25},
-    story = {
-        intro = {
-            {bg = "swamp", title = "THE BLIGHTED MARCH", text = "With Count Vesper gone, Millbrook's harvest came home. But the seed "
-                .. "it sowed came up grey, and the wells began to taste of the grave."},
-            {bg = "graveyard", title = "A WHISPER FROM THE EAST", text = "Beyond the Wild Road lies the Blighted March, where nothing "
-                .. "that dies stays dead. Its master is Malakar, the Lich King. It was he who sent the Count west."},
-            {bg = "trail", title = "THE ROAD GOES ON", text = "The things in the March are older and crueller than anything on the "
-                .. "Wild Road, and every win there earns more glory. Roll anyway. You always do."},
-        },
-        defeat = {
-            {bg = "village", title = "BACK TO MILLBROOK", text = "A crow-picked cart drags you out of the March, still breathing. "
-                .. "The blight creeps a little further west. Spend your glory, and go again."},
-        },
-        victory = {
-            {bg = "grassland", title = "THE BLIGHT LIFTS", text = "Malakar's phylactery cracks, and a thousand stolen souls rush home. "
-                .. "Green shoots break through the grey earth of the March."},
-            {bg = "city", title = "THE PEASANT OF MILLBROOK", text = "Bards will argue for years about how a peasant with chipped "
-                .. "dice beat a lich. You know the truth: you just kept rolling."},
-        },
-    },
+-- Strangers met at mystery stops, each offering something different (npc.lua runs them)
+data.NPCS = {
+    merchant = {name = "Pell", title = "Traveling Merchant", art = "npc_merchant",
+        greet = "Psst! Rare goods, fair prices. Well. Fair-ish. And I'm buying, if you're selling."},
+    medic = {name = "Mother Wren", title = "Medicine Woman", art = "npc_medic",
+        greet = "You look terrible, dearie. Sit. I've a poultice for every ache, and a tonic for what comes after."},
+    sage = {name = "Old Aldous", title = "Wise Old Man", art = "npc_sage",
+        greet = "Ah. A dice-roller. Show me your bones, child, and I'll teach one of them a thing or two."},
+    monk = {name = "Brother Sefu", title = "Blind Monk", art = "npc_monk",
+        greet = "I cannot see your dice. I can hear them, though. One of them rolls... unhappily."},
+    gnome = {name = "Cogsworth", title = "Mechagnome Tinker", art = "npc_gnome",
+        greet = "Ooh! Ooh! Dice! Let me at them. I can move a face from one to another. Probably safely!"},
+    fairy = {name = "Thistle", title = "Wandering Fairy", art = "npc_fairy",
+        greet = "A mortal! How lovely! Make a wish, quick, before I get bored and fly away."},
+    agent = {name = "Vexa", title = "Faction Agent", art = "npc_agent",
+        greet = "My employers have a wager for you. Win your next fight losing no more than half your nerve, and "
+            .. "they pay handsomely. Lose more than that, and they take 10 gold."},
+    elf = {name = "Kael", title = "Scarred Elf Scout", art = "npc_elf",
+        greet = "I've walked this place for years. I know what's ahead. I could tell you... and soften up whoever's next."},
 }
-data.CHAPTERS = {data.CAMPAIGN, MARCH}
+data.NPC_ORDER = {"merchant", "medic", "sage", "monk", "gnome", "fairy", "agent", "elf"}
 
 -- The campaign hero: a peasant of Millbrook with poor dice who grows through the village's upgrades.
 -- Their modifier die is replaced by their class's.

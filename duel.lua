@@ -41,6 +41,7 @@ local gambled, spareUsed, rerolled      -- once-per-turn modifier faces; whether
 local weaken                            -- how much your Weaken face cuts the rival's next hit
 local luckyUsed                         -- how many of the Halfling's blank rerolls this turn has used
 local loc                               -- where the duel is fought (data.LOCATIONS), nil off the campaign road
+local startHp                           -- your nerve when the duel began
 local BLANK = {kind = "blank", value = 0}
 
 ---------------------------------------------------------------------------
@@ -315,19 +316,20 @@ local function evaluate()
     end
     ev.atk = ev.atk + growth + ev.grow
     -- rival tricks that weaken your hand
-    local sp = hand and hand.special
-    if sp and sp.kind == "taunt" then
-        local face = faceOf(mine[1])
-        if face.kind == "sword" then ev.atk = ev.atk - math.min(sp.value, face.value) end
-    elseif sp and sp.kind == "wither" then
-        local top
-        for _, d in ipairs(mine) do
-            local face = faceOf(d)
-            if (face.kind == "sword" or face.kind == "shield") and (not top or face.value > top.value) then top = face end
-        end
-        if top then
-            local cut = math.min(sp.value, top.value)
-            if top.kind == "sword" then ev.atk = ev.atk - cut else ev.def = ev.def - cut end
+    for _, sp in ipairs(hand and hand.specials or {}) do
+        if sp.kind == "taunt" then
+            local face = faceOf(mine[1])
+            if face.kind == "sword" then ev.atk = ev.atk - math.min(sp.value, face.value) end
+        elseif sp.kind == "wither" then
+            local top
+            for _, d in ipairs(mine) do
+                local face = faceOf(d)
+                if (face.kind == "sword" or face.kind == "shield") and (not top or face.value > top.value) then top = face end
+            end
+            if top then
+                local cut = math.min(sp.value, top.value)
+                if top.kind == "sword" then ev.atk = ev.atk - cut else ev.def = ev.def - cut end
+            end
         end
     end
     ev.charms = charmEffects(pat, wild)
@@ -496,8 +498,22 @@ local function win()
         run.gold = run.gold + interest
         lines[#lines + 1] = "+" .. interest .. " interest"
     end
+    -- the faction agent's contract: paid if this duel cost you no more than half your nerve
+    local contract = run.contract
+    if contract then
+        run.contract = nil
+        if startHp - run.hp <= math.floor(run.maxHp / 2) then
+            run.gold = run.gold + contract.pay
+            lines[#lines + 1] = "+" .. contract.pay .. " contract"
+        else
+            local fine = math.min(run.gold, contract.fine)
+            run.gold = run.gold - fine
+            lines[#lines + 1] = "-" .. fine .. " broken contract"
+        end
+    end
     local boss = rival.def.boss
     local campaign = run.mode == "campaign"
+    local last = not campaign or run.act >= #data.ACTS   -- the boss that ends the run
     if campaign then
         local glory = run.chapter().glory[boss and "boss" or rival.def.elite and "elite" or "duel"]
         require("campaign").earn(glory)
@@ -505,10 +521,11 @@ local function win()
         table.insert(lines, 1, "+" .. glory .. " glory")
         if boss then require("campaign").cleared(run.act) end
     end
-    banner = {title = boss and (campaign and "CHAPTER CLEAR!" or "CHAMPION!") or "CLEANED OUT!", color = PAL.gold, t = 0,
-        sub = boss and (campaign and run.chapter().clearLine or "The whole city knows your name.")
-            or table.concat(lines, "   ")}
-    buttons.continue.label = boss and "NEW RUN" or "SPOILS"
+    local title = boss and (campaign and (last and "VICTORY!" or run.chapter().name .. " CLEARED!") or "CHAMPION!")
+    banner = {title = title or "CLEANED OUT!", color = PAL.gold, t = 0,
+        sub = boss and (campaign and (last and "The wilds are free." or "On to " .. data.ACTS[run.act + 1].name .. ".")
+            or "The whole city knows your name.") or table.concat(lines, "   ")}
+    buttons.continue.label = boss and (last and "NEW RUN" or "ONWARD") or "SPOILS"
     sfx.play("win")
 end
 
@@ -538,8 +555,14 @@ end
 local function finish()
     if phase == "won" and not rival.def.boss then
         scene.go("reward")
+    elseif run.mode == "campaign" and phase == "won" and run.act < #data.ACTS then
+        -- an act's boss: rest, then on to the next act with everything you carry
+        local pages = {run.chapter().clear}
+        run.nextAct()
+        pages[2] = run.chapter().intro
+        require("story").play(pages, function() scene.go("route") end)
     elseif run.mode == "campaign" then
-        local pages = {unpack(run.chapter().story[phase == "won" and "victory" or "defeat"])}
+        local pages = {unpack(data.CAMPAIGN_STORY[phase == "won" and "victory" or "defeat"])}
         for _, p in ipairs(require("campaign").checkUnlocks()) do pages[#pages + 1] = p end
         require("story").play(pages, function() scene.go("village") end)
     else
@@ -547,20 +570,37 @@ local function finish()
     end
 end
 
+-- The first of the rival's showing tricks of this kind (elites and bosses throw several trick dice)
+local function trick(kind)
+    for _, sp in ipairs(hand and hand.specials or {}) do
+        if sp.kind == kind then return sp end
+    end
+end
+
+-- Whether the rival's hit ignores your guard this turn
+local function rivalPierces()
+    for _, sp in ipairs(hand and hand.specials or {}) do
+        if sp.kind == "backstab" or sp.kind == "gore" or KINDS[sp.kind].pierce then return sp.kind end
+    end
+end
+
 -- What the rival's hand will hit you for right now; the hand summary and the attack both use this
 local function rivalAttack()
-    if not hand or hand.dizzy then return 0 end
-    local k, v = hand.special.kind, hand.special.value
-    if k == "nap" then return 0 end
+    if not hand or hand.dizzy or trick("nap") then return 0 end
     -- flat bonuses scale with RIVAL_POWER like the dice do; bash's guard is already scaled
-    local extra = KINDS[k].bonus or 0
-    if k == "unleash" then extra = extra + rival.patience end
-    if k == "fury" and rival.took > 0 then extra = extra + v end
-    if k == "riposte" and rival.parried > 0 then extra = extra + v end
-    if k == "judgment" and hand.def > block then extra = extra + v end
-    if k == "cataclysm" then extra = extra + rival.str * 2 end
+    local extra, bash = 0, false
+    for _, sp in ipairs(hand.specials) do
+        local k, v = sp.kind, sp.value
+        extra = extra + (KINDS[k].bonus or 0)
+        if k == "unleash" then extra = extra + rival.patience end
+        if k == "fury" and rival.took > 0 then extra = extra + v end
+        if k == "riposte" and rival.parried > 0 then extra = extra + v end
+        if k == "judgment" and hand.def > block then extra = extra + v end
+        if k == "cataclysm" then extra = extra + rival.str * 2 end
+        if k == "bash" or KINDS[k].bash then bash = true end
+    end
     local atk = hand.atk + math.floor(extra * rivalPower)
-    if k == "bash" or KINDS[k].bash then atk = atk + rival.block end
+    if bash then atk = atk + rival.block end
     if atk > 0 then atk = math.max(0, atk + math.floor(rival.str * rivalPower) - weaken) end
     if atk > 0 and loc and loc.rivalAtk then atk = atk + loc.rivalAtk end
     -- a duel that drags on makes the rival impatient, so no one can stall forever
@@ -575,19 +615,19 @@ local function rivalAct()
         fx.after(0.6, function() rivalRoll() end)
         return
     end
-    local k, v = hand.special.kind, hand.special.value
+    local pierce = rivalPierces()
     fx.after(0.45, function()
-        if k == "nap" then
+        if trick("nap") then
             say("Zzz...")
             fx.text("ZZZ", FIELD_X + 30, PORTRAIT_Y - 30, PAL.grey, "big")
             return
         end
         local atk = rivalAttack()
-        if k == "unleash" then rival.patience = 0 end
+        if trick("unleash") then rival.patience = 0 end
         if atk > 0 then
             fx.tween(rival, 0.12, {punch = 1}, "out", function() fx.tween(rival, 0.35, {punch = 0}) end)
             fx.timer(0.1, function()
-                local dmg = hurtPlayer(atk, k == "backstab" or k == "gore" or KINDS[k].pierce)
+                local dmg = hurtPlayer(atk, pierce ~= nil)
                 if dmg > 0 and run.hasCharm("crown") and not rival.dead then
                     if AUTO_TEST then autoFired("crown") end
                     fx.text("THORN CROWN", FIELD_X, PORTRAIT_Y - 44, PAL.green, "med")
@@ -604,8 +644,9 @@ local function rivalAct()
                     damageRival(rebuke, true)
                 end
             end)
-            if k == "backstab" or k == "gore" or KINDS[k].pierce then
-                fx.text(k == "gore" and "GORED!" or k == "backstab" and "BACKSTAB!" or "PIERCED!", BLOCK_POS.x + 40, BLOCK_POS.y - 24, PAL.purple, "med")
+            if pierce then
+                fx.text(pierce == "gore" and "GORED!" or pierce == "backstab" and "BACKSTAB!" or "PIERCED!", BLOCK_POS.x + 40,
+                    BLOCK_POS.y - 24, PAL.purple, "med")
             end
         end
     end)
@@ -625,39 +666,48 @@ local function rivalAct()
     end
     fx.after(0.45, function()
         if rival.dead then return end
-        local heal = (k == "mend" and math.floor(v * rivalPower)) or (k == "sanctify" and math.floor(hand.def / 2))
-            or ((k == "smite" or k == "regrow" or k == "feast") and math.floor(6 * rivalPower))
-            or (KINDS[k].heal and math.floor(KINDS[k].heal * rivalPower)) or 0
+        -- every trick die that showed acts in turn; their pop-ups stack so they can all be read
+        local heal, rise = 0, 0
+        for _, sp in ipairs(hand.specials) do
+            local k, v = sp.kind, sp.value
+            heal = heal + ((k == "mend" and math.floor(v * rivalPower)) or (k == "sanctify" and math.floor(hand.def / 2))
+                or ((k == "smite" or k == "regrow" or k == "feast") and math.floor(6 * rivalPower))
+                or (KINDS[k].heal and math.floor(KINDS[k].heal * rivalPower)) or 0)
+            local y = PORTRAIT_Y - 40 - rise
+            if k == "rage" or k == "channel" or k == "debt" or KINDS[k].str then
+                local gain = (k == "debt" and math.floor(rival.took / 4)) or KINDS[k].str or v
+                if gain > 0 then
+                    rival.str = rival.str + gain
+                    fx.text((k == "channel" and "POWER +" or "STR +") .. gain, FIELD_X, y, PAL.red, "big")
+                    sfx.play("mult", 0.6)
+                    rise = rise + 18
+                end
+            end
+            if k == "aura" and rival.block > 0 then
+                rival.carry = rival.block
+                fx.text("AURA " .. rival.block, RIVAL_HP.x + RIVAL_HP.w + 14, RIVAL_HP.y - 8, PAL.blue, "med")
+                sfx.play("block", 1.3)
+            elseif k == "rot" or k == "harvest" or KINDS[k].rot then
+                rot = rot + (k == "rot" and v or KINDS[k].rot or 3)
+                fx.text("ROT " .. rot, HP_POS.x, HP_POS.y - 14, PAL.green, "big", {shake = true})
+                sfx.play("death", 1.6)
+            elseif k == "plunder" or KINDS[k].steal then
+                local stolen = math.min(run.gold, KINDS[k].steal or v)
+                run.gold = run.gold - stolen
+                fx.text("-" .. stolen .. "g", GOLD_POS.x, GOLD_POS.y - 10, PAL.gold, "big")
+                sfx.play("coin", 0.7)
+            elseif k == "pray" then
+                rival.patience = rival.patience + v
+                fx.text("PATIENCE +" .. v, FIELD_X, y, PAL.gold, "med")
+                sfx.play("heal", 0.6)
+                rise = rise + 18
+            end
+        end
         if heal > 0 then
             local before = rival.hp
             rival.hp = math.min(rival.maxHp, rival.hp + heal)
             fx.text("+" .. (rival.hp - before), RIVAL_HP.x + RIVAL_HP.w / 2, RIVAL_HP.y - 8, PAL.green, "big")
             sfx.play("heal", 0.8)
-        end
-        if k == "rage" or k == "channel" or k == "debt" then
-            local gain = k == "debt" and math.floor(rival.took / 4) or v
-            if gain > 0 then
-                rival.str = rival.str + gain
-                fx.text((k == "channel" and "POWER +" or "STR +") .. gain, FIELD_X, PORTRAIT_Y - 40, PAL.red, "big")
-                sfx.play("mult", 0.6)
-            end
-        elseif k == "aura" and rival.block > 0 then
-            rival.carry = rival.block
-            fx.text("AURA " .. rival.block, RIVAL_HP.x + RIVAL_HP.w + 14, RIVAL_HP.y - 8, PAL.blue, "med")
-            sfx.play("block", 1.3)
-        elseif k == "rot" or k == "harvest" or KINDS[k].rot then
-            rot = rot + (k == "rot" and v or KINDS[k].rot or 3)
-            fx.text("ROT " .. rot, HP_POS.x, HP_POS.y - 14, PAL.green, "big", {shake = true})
-            sfx.play("death", 1.6)
-        elseif k == "plunder" then
-            local stolen = math.min(run.gold, v)
-            run.gold = run.gold - stolen
-            fx.text("-" .. stolen .. "g", GOLD_POS.x, GOLD_POS.y - 10, PAL.gold, "big")
-            sfx.play("coin", 0.7)
-        elseif k == "pray" then
-            rival.patience = rival.patience + v
-            fx.text("PATIENCE +" .. v, FIELD_X, PORTRAIT_Y - 40, PAL.gold, "med")
-            sfx.play("heal", 0.6)
         end
     end)
     if rot > 0 then
@@ -850,22 +900,31 @@ local function startPlayerTurn()
         hpShake = 1
         fx.text("PACT -" .. cost, HP_POS.x, HP_POS.y, PAL.purple, "med")
     end
-    local k = hand and hand.special and hand.special.kind
     for _, d in ipairs(mine) do d.held, d.locked, d.sanded, d.fixed = false, false, false, nil end
-    if k == "sand" then
-        local d = modDie
-        d.sanded = true
-        fx.text("POCKET SAND!", d.x, d.y - 36, PAL.gold, "med", {shake = true})
-        fx.burst(d.x, d.y, 20, {0.9, 0.8, 0.5}, 90)
-        sfx.play("block", 0.5)
-    elseif k == "sleight" then
-        rerolls = math.max(0, rerolls - 1)
-        fx.text("-1 REROLL", 120, 118, PAL.purple, "med", {shake = true})
-    elseif k == "lock" then
-        local d = mine[math.random(#mine)]
-        d.locked = true
-        fx.text("LOCKED", d.x, d.y - 36, PAL.grey, "med", {shake = true})
-        sfx.play("block", 0.5)
+    for _, sp in ipairs(hand and hand.specials or {}) do
+        local k = sp.kind
+        if k == "sand" then
+            local d = modDie
+            d.sanded = true
+            fx.text("POCKET SAND!", d.x, d.y - 36, PAL.gold, "med", {shake = true})
+            fx.burst(d.x, d.y, 20, {0.9, 0.8, 0.5}, 90)
+            sfx.play("block", 0.5)
+        elseif k == "sleight" then
+            rerolls = math.max(0, rerolls - 1)
+            fx.text("-1 REROLL", 120, 118, PAL.purple, "med", {shake = true})
+        elseif k == "lock" then
+            -- a second lock finds a die the first one missed
+            local free = {}
+            for _, d in ipairs(mine) do
+                if not d.locked then free[#free + 1] = d end
+            end
+            if #free > 1 then
+                local d = free[math.random(#free)]
+                d.locked = true
+                fx.text("LOCKED", d.x, d.y - 36, PAL.grey, "med", {shake = true})
+                sfx.play("block", 0.5)
+            end
+        end
     end
     roll(mine, function(d) return not d.locked end)
 end
@@ -910,8 +969,8 @@ local function bump(d, value, text, color)
     if text then fx.text(text, d.x, d.y - 26, color, "med", {shake = true}) end
 end
 
--- Tricks that change the rival's own dice before the hand is read
-local function rivalTweaks(sp)
+-- Tricks that change the rival's own dice before the hand is read; d is the trick die that showed sp
+local function rivalTweaks(sp, d)
     if sp.kind == "steady" or sp.kind == "inspire" then
         for i = 1, 2 do
             local face = faceOf(theirs[i])
@@ -922,58 +981,77 @@ local function rivalTweaks(sp)
         end
     elseif sp.kind == "encore" then
         local red = faceOf(theirs[1])
-        if red.kind ~= "blank" then bump(theirs[3], red.value, "ENCORE!", PAL.gold) end
+        if red.kind ~= "blank" then bump(d, red.value, "ENCORE!", PAL.gold) end
+    end
+end
+
+-- The rival's trick dice: the third die on, since elites throw two and bosses three
+local function trickDice()
+    local list = {}
+    for i = 3, #theirs do list[#list + 1] = theirs[i] end
+    return list
+end
+
+local function rivalLanded()
+    for _, d in ipairs(trickDice()) do
+        local sp = faceOf(d)
+        if sp.kind == "echo" and rival.lastTrick then
+            d.override = rival.lastTrick
+            sp = rival.lastTrick
+            fx.text("ECHO: " .. KINDS[sp.kind].name:upper(), d.x, d.y - 26, PAL.purple, "med")
+        end
+        if sp.kind == "flick" and not rival.flicked then
+            rival.flicked = true
+            fx.text("FLICK!", theirs[1].x, theirs[1].y - 26, PAL.purple, "med", {shake = true})
+            return roll({theirs[1]})
+        end
+    end
+    local specials = {}
+    for _, d in ipairs(trickDice()) do
+        local sp = faceOf(d)
+        if not KINDS[sp.kind].sig and sp.kind ~= "blank" and sp.kind ~= "echo" then rival.lastTrick = sp end
+        rivalTweaks(sp, d)
+        specials[#specials + 1] = sp
     end
     local red = faceOf(theirs[1])
     if rival.warcry > 0 and red.kind == "sword" then
         bump(theirs[1], red.value + rival.warcry, "WAR CRY +" .. rival.warcry, PAL.red)
     end
     rival.warcry = 0
-end
-
-local function rivalLanded()
-    local sp = faceOf(theirs[3])
-    if sp.kind == "echo" and rival.lastTrick then
-        theirs[3].override = rival.lastTrick
-        sp = rival.lastTrick
-        fx.text("ECHO: " .. KINDS[sp.kind].name:upper(), theirs[3].x, theirs[3].y - 26, PAL.purple, "med")
-    end
-    if sp.kind == "flick" and not rival.flicked then
-        rival.flicked = true
-        fx.text("FLICK!", theirs[1].x, theirs[1].y - 26, PAL.purple, "med", {shake = true})
-        return roll({theirs[1]})
-    end
-    if not KINDS[sp.kind].sig and sp.kind ~= "blank" and sp.kind ~= "echo" then rival.lastTrick = sp end
-    rivalTweaks(sp)
 
     phase = "rivalread"
-    local pat = data.pattern(pipsOf(theirs), #theirs)
+    -- only the first three dice make the pattern; extra trick dice just add their effects
+    local pat = data.pattern(pipsOf(theirs), 3)
     local r, b = faceOf(theirs[1]), faceOf(theirs[2])
-    sp = faceOf(theirs[3])
-    hand ={pattern = pat, special = sp, sig = isSig(),
+    for i, d in ipairs(trickDice()) do specials[i] = faceOf(d) end   -- encore may have bumped one
+    hand = {pattern = pat, specials = specials, sig = isSig(),
         atk = r.kind == "sword" and math.floor(r.value * pat.mult * rivalPower) or 0,
         def = b.kind == "shield" and math.floor(b.value * pat.mult * rivalPower) or 0}
-    local k = sp.kind
-    if k == "overcommit" then hand.atk, hand.def = hand.atk * 2, 0 end
-    if k == "brace" then hand.def = hand.def * 2 end
-    if k == "surge" and r.kind == "sword" and b.kind == "shield" and r.value % 2 == 0 and b.value % 2 == 0 then
-        hand.atk = hand.atk * 2
-        fx.text("ARC SURGE!", 548, RIVAL_DICE_Y + 26, PAL.blue, "med", {shake = true})
+    for _, sp in ipairs(specials) do
+        local k = sp.kind
+        if k == "overcommit" then hand.atk, hand.def = hand.atk * 2, 0 end
+        if k == "brace" then hand.def = hand.def * 2 end
+        if k == "surge" and r.kind == "sword" and b.kind == "shield" and r.value % 2 == 0 and b.value % 2 == 0 then
+            hand.atk = hand.atk * 2
+            fx.text("ARC SURGE!", 548, RIVAL_DICE_Y + 26, PAL.blue, "med", {shake = true})
+        end
+        if k == "swap" then hand.atk, hand.def = hand.def, hand.atk end
+        if k == "bonewall" then
+            rival.bones = rival.bones + sp.value
+            hand.def = hand.def + math.floor(rival.bones * rivalPower)
+        end
+        if k == "warcry" then rival.warcry = rival.warcry + sp.value end
     end
-    if k == "swap" then hand.atk, hand.def = hand.def, hand.atk end
-    if k == "bonewall" then
-        rival.bones = rival.bones + sp.value
-        hand.def = hand.def + math.floor(rival.bones * rivalPower)
-    end
-    if k == "warcry" then rival.warcry = sp.value end
     rival.block = rival.block + hand.def
     if hand.def > 0 then sfx.play("block", 0.9) end
     if pat.mult > 1 then
         fx.text(pat.name .. "!", 548, RIVAL_DICE_Y - 22, PAL.gold, "med", {shake = true})
         sfx.play("mult", 0.7 + pat.mult * 0.1)
     end
-    if sp.kind == "hex" then hexFaces(1) elseif sp.kind == "doom" then hexFaces(2)
-    elseif KINDS[sp.kind].hexes then hexFaces(KINDS[sp.kind].hexes) end
+    for _, sp in ipairs(specials) do
+        if sp.kind == "hex" then hexFaces(1) elseif sp.kind == "doom" then hexFaces(2)
+        elseif KINDS[sp.kind].hexes then hexFaces(KINDS[sp.kind].hexes) end
+    end
     if hand.sig then
         say(rival.def.sigLine)
         fx.addShake(0.5)
@@ -1166,18 +1244,23 @@ function duel.auto()
     if (phase == "won" or phase == "lost") and banner.t > 0.6 then
         print(string.format("AUTO: %s vs %s  nerve %d  gold %d  turns %d  at %s", phase, rival.def.name, run.hp, run.gold,
             turn, loc and loc.name or "-"))
-        print(string.format("AUTO: result %s %s %d %d %d %d %d", phase, run.rival, run.hp, run.maxHp, turn, run.gold, rival.hp))
+        print(string.format("AUTO: result %s %s %d %d %d %d %d %d %d %s %d", phase, run.rival, run.hp, run.maxHp, turn,
+            run.gold, rival.hp, run.act or 0, run.locIndex or 0, rival.def.boss and "boss" or rival.def.elite and "elite"
+            or "duel", startHp))
         local fired = {}
         for id, n in pairs(AUTO_FIRED or {}) do fired[#fired + 1] = id .. "=" .. n end
         print("AUTO: relics " .. table.concat(run.charms, ",") .. "  fired " .. table.concat(fired, ","))
         AUTO_FIRED = {}
-        if run.mode == "campaign" and not ONE_DUEL and (phase == "lost" or rival.def.boss) then
-            -- the run's over: the weapons it earned, as the story pages would announce them
+        -- the run ends on a loss or the last act's boss; an earlier boss leads on to the next act
+        local over = phase == "lost" or (rival.def.boss and (run.mode ~= "campaign" or run.act >= #data.ACTS))
+        if run.mode == "campaign" and not ONE_DUEL and over then
+            -- the weapons it earned, as the story pages would announce them
             for _, p in ipairs(require("campaign").checkUnlocks()) do
                 print("AUTO: unlocked " .. p.art:sub(5) .. "  (" .. run.class .. ")")
             end
+            print(string.format("AUTO: run over  act %d  location %d  %s", run.act, run.locIndex, phase))
         end
-        if phase == "lost" or rival.def.boss or ONE_DUEL then love.event.quit() else finish() end
+        if over or ONE_DUEL then love.event.quit() else finish() end
     end
 end
 
@@ -1188,14 +1271,11 @@ end
 function duel.enter()
     local def = data.RIVALS[run.rival]
     scene.bg = def.boss and gfx.BG.boss or gfx.BG.tavern
-    -- campaign duels are fought out on the road, in the stop's location
-    local stop = run.mode == "campaign" and run.stopFor(run.rival)
-    if stop and stop.bg then scene.backdrop, scene.dim = stop.bg, 0.3 end
-    loc = stop and data.LOCATIONS[stop.bg] or nil
-    if LOC then   -- test runs: --loc
-        loc = data.LOCATIONS[LOC]
-        if loc then scene.backdrop, scene.dim = LOC, 0.3 end
-    end
+    -- campaign duels are fought in the location you're exploring (or the boss's lair), under its rule
+    local where = run.mode == "campaign" and run.location
+    if LOC then where = LOC ~= "none" and LOC end   -- test runs: --loc
+    loc = where and data.LOCATIONS[where] or nil
+    if loc then scene.backdrop, scene.dim = where, 0.3 end
     time, hpShake, turn, block, rerolls = 0, 0, 0, 0, 0
     score, banner, bubble, hand, introT = nil, nil, nil, nil, 0
     rot, streak = 0, 0
@@ -1204,13 +1284,22 @@ function duel.enter()
     local camp = run.mode == "campaign" and run.chapter() or {}
     rivalPower = data.RIVAL_POWER * (camp.power or 1)
     rivalHpScale = data.RIVAL_HP_SCALE * (camp.hpScale or 1)
-    -- a chapter that ramps eases its early rows, climbing to full strength at the boss
-    if camp.ramp and run.row > 0 then
-        local k = camp.ramp + (1 - camp.ramp) * (run.row - 1) / (camp.rows - 1)
+    -- each act's later locations are a little tougher than its first
+    if run.mode == "campaign" and run.locIndex > 1 then
+        local k = 1 + data.LOCATION_RAMP * (run.locIndex - 1)
         rivalPower, rivalHpScale = rivalPower * k, rivalHpScale * k
     end
+    -- an act's boss isn't scaled as hard as the monsters on the way to it
+    if def.boss and camp.bossScale then rivalPower, rivalHpScale = rivalPower * camp.bossScale, rivalHpScale * camp.bossScale end
     local hp = math.floor(def.hp * rivalHpScale)
-    rival = {def = def, hp = hp, hpShown = hp, maxHp = hp, stagger = math.floor(def.stagger * rivalHpScale * (run.weapon and data.WEAPONS[run.weapon].stagger or 1)
+    -- the scout's ambush: this rival starts the duel already hurt
+    local start = hp
+    if run.weakenNext then
+        start = math.floor(hp * run.weakenNext)
+        run.weakenNext = nil
+    end
+    startHp = run.hp   -- the faction agent's contract measures the nerve this duel costs
+    rival = {def = def, hp = start, hpShown = start, maxHp = hp, stagger = math.floor(def.stagger * rivalHpScale * (run.weapon and data.WEAPONS[run.weapon].stagger or 1)
             * (loc and loc.stagger or 1)),
         block = 0, str = 0, patience = 0,
         carry = 0, took = 0, parried = 0, warcry = 0, bones = 0, lastTrick = nil, flicked = false, poison = 0, bleed = 0,
@@ -1226,9 +1315,11 @@ function duel.enter()
         fx.tween(d, 0.4 + i * 0.05, {y = TRAY_Y}, "back")
     end
     theirs = {}
-    local bodies = {data.ROLE_COLORS.red, data.ROLE_COLORS.blue, def.dieColor}
+    -- red, blue, then one trick die (two for elites, three for bosses), packed closer when there are more
+    local bodies = {data.ROLE_COLORS.red, data.ROLE_COLORS.blue}
+    local gap = #def.dice > 3 and RIVAL_GAP - 6 or RIVAL_GAP
     for i, faces in ipairs(def.dice) do
-        theirs[i] = newDie(faces, bodies[i], FIELD_X + (i - 2) * RIVAL_GAP, RIVAL_DICE_Y)
+        theirs[i] = newDie(faces, bodies[i] or def.dieColor, FIELD_X + (i - (#def.dice + 1) / 2) * gap, RIVAL_DICE_Y)
     end
 
     buttons = {
@@ -1345,7 +1436,8 @@ local function drawRivalStatus()
 end
 
 local function drawRivalHand()
-    local x, y = 470, 190
+    -- the hand's summary sits just right of the rival's last die (bosses throw five)
+    local x, y = math.max(470, theirs[#theirs].x + 26), 190 - 2 * (#theirs - 3)
     for _, d in ipairs(theirs) do
         local face = faceOf(d)
         local rot = d.rot + (d.rolling > 0 and 0 or math.sin(time * 2 + d.wob) * 0.03)
@@ -1365,9 +1457,13 @@ local function drawRivalHand()
     gfx.print(atk, x + 16, y + 12, "med", PAL.red)
     gfx.icon("shield", x + 57, y + 19, 14, PAL.blue)
     gfx.print(hand.def, x + 66, y + 12, "med", PAL.blue)
-    local k = KINDS[hand.special.kind]
-    if hand.special.kind ~= "blank" then
-        gfx.print(k.name:upper(), x, y + 30, "small", k.color, "left", 160)
+    local ty = y + 29
+    for _, sp in ipairs(hand.specials) do
+        if sp.kind ~= "blank" then
+            local k = KINDS[sp.kind]
+            gfx.print(k.name:upper(), x, ty, "small", k.color, "left", 160)
+            ty = ty + 10
+        end
     end
 end
 

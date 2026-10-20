@@ -12,7 +12,7 @@ local time, buttons
 
 local MODES = {
     {id = "tavern", label = "TAVERN RUN", blurb = "A random circuit of rivals. Beat the Bookmaker.", color = {0.62, 0.40, 0.14}},
-    {id = "campaign", label = "CAMPAIGN", blurb = "The Wild Road, and what lies beyond it.", color = {0.30, 0.22, 0.45}},
+    {id = "campaign", label = "CAMPAIGN", blurb = "Three acts across the wilds, and the powers that rule them.", color = {0.30, 0.22, 0.45}},
 }
 local BUTTON_W, BUTTON_H, BUTTON_Y, BUTTON_GAP = 190, 30, 212, 40
 

@@ -111,13 +111,14 @@ function love.load(args)
         if a == "--oneduel" then ONE_DUEL = true end   -- autoplay quits after its first duel
         if a == "--class" then CLASS = args[i + 1] end   -- test runs start as this class: warrior, mage or rogue
         if a == "--row" then ROW = tonumber(args[i + 1]) end   -- the map row a test duel is fought on
-        if a == "--ramp" then require("data").CAMPAIGN.ramp = tonumber(args[i + 1]) end   -- try a different Wild Road ramp
+        if a == "--locidx" then LOCIDX = tonumber(args[i + 1]) end   -- which location of its act a test duel is in
+        if a == "--npc" then NPC = args[i + 1] end   -- the stranger the npc scene opens with
         if a == "--campaign" then mode = "campaign" end
         if a == "--sheet" then sheet.open = true end   -- start with the Tab sheet open (for screenshots)
         if a == "--unlock" then unlock = args[i + 1] end
         if a == "--bazaar" then require("run").bazaar = true end   -- the next shop is a mystery stop's bazaar
         if a == "--glory" then glory = tonumber(args[i + 1]) end   -- glory to spend in the test save
-        if a == "--act" then act = tonumber(args[i + 1]) end   -- campaign chapter; 2 also opens it in the test save
+        if a == "--act" then act = tonumber(args[i + 1]) end   -- the campaign act a test run starts in
         if a == "--loc" then LOC = args[i + 1] end   -- fight every duel at this location; "none" for no location rule
         if a == "--seed" then SEED = tonumber(args[i + 1]) end   -- repeatable test runs
         if a == "--speed" then AUTO_SPEED = tonumber(args[i + 1]) end   -- autoplay speed (default 5)
@@ -142,13 +143,18 @@ function love.load(args)
         require("campaign").saveFile = SAVEFILE or "campaign_auto.sav"
         love.filesystem.remove(require("campaign").saveFile)
         for id in (unlock or ""):gmatch("%a+") do require("campaign").state().weapons[id] = true end   -- weapons, e.g. cannon,aegis
-        if act == 2 then require("campaign").state().clears = 1 end
         require("campaign").state().glory = glory or 0
     end
     layout()
     if start ~= "title" then
         local run = require("run")
-        if mode == "campaign" then require("campaign").newRun(act) else run.new() end
+        if mode == "campaign" then require("campaign").newRun() else run.new() end
+        run.act = act or run.act
+        -- campaign test runs start inside --loc (a location, or a boss id for its lair)
+        if mode == "campaign" and LOC and require("data").REGIONS[LOC] then run.enterLocation(LOC)
+        elseif mode == "campaign" and LOC and require("data").LAIRS[LOC] then run.enterLair(LOC) LOC = nil end
+        run.locIndex = LOCIDX or run.locIndex
+        run.npc = NPC or "merchant"
         run.rival = rival or run.rival
         run.row = ROW or run.row
         for id in (relics or ""):gmatch("%a+") do run.addCharm(id) end
@@ -209,7 +215,7 @@ local function autoplay(dt)
         shotT, shotN = 0, shotN + 1
         love.graphics.captureScreenshot(string.format("auto_%02d.png", shotN))
     end
-    if time > 900 then
+    if time > (ONE_DUEL and 900 or 9000) then   -- a whole three-act run takes far longer than one duel
         print("AUTO: timed out")
         love.event.quit()
     end

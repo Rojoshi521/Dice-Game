@@ -19,6 +19,14 @@ local TAVERN = {rows = data.MAP_ROWS, pools = data.DUEL_POOLS, elites = data.ELI
 
 local function rowType(r, cfg)
     if r == 1 then return "duel" end
+    if cfg.location then
+        -- a campaign location: no elites until the one guarding its end
+        local roll = math.random()
+        if roll < 0.44 then return "duel" end
+        if roll < 0.66 then return "mystery" end
+        if roll < 0.80 then return "shop" end
+        return "hearth"
+    end
     if r == cfg.rows - 1 then return "hearth" end
     local roll = math.random()
     if r >= 3 and roll < 0.18 then return "elite" end
@@ -39,16 +47,33 @@ local function pickFresh(list, used)
     return id
 end
 
--- Rows run from 1 (bottom) to cfg.rows (the boss). Edges never cross:
+-- What a mystery stop holds, decided when the map is made so a scout can tell you ahead of time:
+-- an ambush, a hidden bazaar, the dice shrine, or a stranger (an NPC from data.NPCS)
+local function mysteryFor(cfg, used)
+    local roll = math.random()
+    if roll < 0.25 then return {kind = "ambush", rival = pickFresh(cfg.pools[1], used)} end
+    if roll < 0.40 then return {kind = "bazaar"} end
+    if roll < 0.55 then return {kind = "shrine"} end
+    local fresh = {}
+    for _, id in ipairs(data.NPC_ORDER) do
+        if not used["npc:" .. id] then fresh[#fresh + 1] = id end
+    end
+    local id = pick(#fresh > 0 and fresh or data.NPC_ORDER)
+    used["npc:" .. id] = true
+    return {kind = "npc", npc = id}
+end
+
+-- Rows run from 1 (bottom) to cfg.rows (the boss, or a location's elite). Edges never cross:
 -- node i links to the node at its proportional spot in the next row, sometimes
 -- to the one after it too, and any node left without a way in gets one.
 local function generateMap(cfg)
-    local rows, used = {}, {}
+    local rows, used = {}, cfg.used or {}
     for r = 1, cfg.rows do
         local n = (r == cfg.rows) and 1 or (r == 1 and 3 or math.random(2, 4))
+        if cfg.location and r < cfg.rows then n = math.random(2, 3) end
         rows[r] = {}
         for i = 1, n do
-            local kind = r == cfg.rows and "boss" or rowType(r, cfg)
+            local kind = r == cfg.rows and (cfg.location and "elite" or "boss") or rowType(r, cfg)
             local node = {kind = kind, next = {}}
             if kind == "duel" then
                 node.rival = pickFresh(cfg.pools[r <= 3 and 1 or 2], used)
@@ -56,6 +81,8 @@ local function generateMap(cfg)
                 node.rival = pickFresh(cfg.elites, used)
             elseif kind == "boss" then
                 node.rival = cfg.boss
+            elseif kind == "mystery" then
+                node.secret = mysteryFor(cfg, used)
             end
             rows[r][i] = node
         end
@@ -102,19 +129,14 @@ local function generateMap(cfg)
     return rows
 end
 
--- A campaign chapter with a fixed road (no pools yet): one stop per row, each leading straight to the next
-local function campaignMap(chapter)
-    local rows = {}
-    for r, stop in ipairs(chapter.road) do
-        rows[r] = {{kind = stop.kind, rival = stop.rival, next = r < #chapter.road and {1} or {}}}
-    end
-    return rows
-end
-
--- mode: "tavern" (a random circuit, the default) or "campaign"; act: which campaign chapter
-function run.new(mode, act)
+-- mode: "tavern" (a random circuit, the default) or "campaign", which starts at Act I with no
+-- location chosen yet (the route scene picks one)
+function run.new(mode)
     run.mode = mode or "tavern"
-    run.act = act or 1
+    run.act = 1
+    run.locIndex, run.location, run.lair, run.visited = 0, nil, nil, {}
+    run.used = {}            -- rivals and strangers already met this run, so locations don't repeat them
+    run.scout, run.contract, run.weakenNext = nil, nil, nil
     -- what the outfit screen grants before setting out; the campaign's come from Millbrook's upgrades,
     -- and race and class add to them
     run.perks = {relics = 1, upgrades = 1, rerolls = 0, draft = true, backstory = true, redraws = 0}
@@ -123,9 +145,7 @@ function run.new(mode, act)
     run.dice = {}
     for i, die in ipairs(data.START_DICE) do run.dice[i] = copyDie(die) end
     run.charms = {}
-    if run.mode ~= "campaign" then run.map = generateMap(TAVERN)
-    elseif run.chapter().road then run.map = campaignMap(run.chapter())
-    else run.map = generateMap(run.chapter()) end
+    run.map = run.mode == "campaign" and {} or generateMap(TAVERN)
     run.row, run.col, run.path = 0, nil, {}
     run.rival = "pip"
     run.race, run.class, run.backstory, run.weapon = nil, nil, nil, nil
@@ -139,20 +159,44 @@ function run.addCharm(id)
     if id == "piggy" then run.gold = run.gold + 10 end
 end
 
--- The campaign chapter this run walks
-function run.chapter() return data.CHAPTERS[run.act or 1] end
+-- The campaign act this run is in
+function run.chapter() return data.ACTS[run.act or 1] end
 
--- Where a campaign rival is met: its story card and backdrop
-function run.stopFor(rival)
-    local ch = run.chapter()
-    if ch.stops then return ch.stops[rival] end
-    for _, stop in ipairs(ch.road) do
-        if stop.rival == rival then return stop end
-    end
+-- Sets out into campaign location id: its own map of its monsters, ending at one of its elites
+function run.enterLocation(id)
+    local region = data.REGIONS[id]
+    run.location, run.lair, run.scout = id, nil, nil
+    run.visited[id] = true
+    run.locIndex = run.locIndex + 1
+    run.map = generateMap({rows = data.LOCATION_ROWS, pools = {region.duels, region.duels}, elites = region.elites,
+        location = true, used = run.used})
+    run.row, run.col, run.path = 0, nil, {}
+end
+
+-- The act's last stop: a boss's lair (one of the act's bosses, unless given), with a last shop or
+-- fire before the boss
+function run.enterLair(boss)
+    boss = boss or pick(run.chapter().bosses)
+    run.lair, run.location = boss, data.LAIRS[boss].bg
+    run.map = {{{kind = "shop", next = {1}}, {kind = "hearth", next = {1}}}, {{kind = "boss", rival = boss, next = {}}}}
+    run.row, run.col, run.path = 0, nil, {}
+end
+
+-- Every stop on the current map has been walked to its end
+function run.mapDone() return #run.map > 0 and run.row == #run.map end
+
+-- On to the next act: nerve restored, everything else kept
+function run.nextAct()
+    run.act = run.act + 1
+    run.locIndex, run.lair = 0, nil
+    run.hp = run.maxHp
+    run.map, run.row, run.col, run.path = {}, 0, nil, {}
 end
 
 function run.venue()
-    return run.mode == "campaign" and run.chapter().name or data.VENUE
+    if run.mode ~= "campaign" then return data.VENUE end
+    if run.lair then return data.LAIRS[run.lair].title end
+    return run.location and data.LOCATIONS[run.location].name:upper() or run.chapter().title
 end
 
 function run.hasCharm(id)
