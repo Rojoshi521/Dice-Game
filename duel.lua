@@ -35,7 +35,7 @@ local rivalPower, rivalHpScale = data.RIVAL_POWER, data.RIVAL_HP_SCALE
 local duel = {}
 local mine, modDie, theirs, rival, hand, buttons, charmAnim
 local phase, turn, rerolls, block, score, banner, bubble, time, hpShake, introT
-local rot, streak                      -- the necromancer's curse on you; Hot Streak's count
+local rot, streak                      -- the necromancer's curse on you; Ember Heart's count
 local lastMod, growth, thorns, bank     -- modifier-die state that outlives a single roll
 local gambled, spareUsed, rerolled      -- once-per-turn modifier faces; whether you rerolled
 local weaken                            -- how much your Weaken face cuts the rival's next hit
@@ -109,7 +109,7 @@ local function land(d)
     d.rolling = 0
     d.face = drawFace(d)
     if d.forced then d.override, d.forced = d.forced, nil end
-    -- Weighted Dice: landing on the die's lowest face earns one more roll
+    -- Fate's Lodestone: landing on the die's lowest face earns one more roll
     if d.mine and run.hasCharm("weighted") and not d.override then
         local low = math.huge
         for _, f in ipairs(d.faces) do low = math.min(low, f.kind == "blank" and -1 or f.value) end
@@ -175,7 +175,7 @@ end
 local function charmEffects(pat, wild)
     local sum, swords, shields = 0, 0, 0
     for _, p in pairs(pipsOf(mine)) do sum = sum + (p == "wild" and wild or p) end
-    -- Brass Knuckles and Tower Shield only care about the red and blue dice themselves
+    -- Ogre Gauntlets and Stoneward Charm only care about the red and blue dice themselves
     for _, d in ipairs(mine) do
         local k = faceOf(d).kind
         if k == "sword" and d.role == "red" then swords = swords + 1
@@ -383,7 +383,7 @@ local function baseMood()
     return "idle"
 end
 
--- Whether your attacks ignore his guard: the Executioner's Axe, the Graveyard, the Rapier
+-- Whether your attacks ignore his guard: the Headsman's Rune, the Graveyard, the Rapier
 local function pierces()
     return run.hasCharm("axe") or (loc and loc.pierce) or data.trait(run, "pierce") > 0
 end
@@ -521,7 +521,7 @@ local function lose()
     sfx.play("lose")
 end
 
--- Phoenix Feather burns up to pull you back from a bust
+-- Phoenix Plume burns up to pull you back from a bust
 local function rise()
     for i, id in ipairs(run.charms) do
         if id == "phoenix" then table.remove(run.charms, i) break end

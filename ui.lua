@@ -3,6 +3,7 @@
 local data = require("data")
 local run = require("run")
 local gfx = require("gfx")
+local art = require("art")
 local scene = require("scene")
 
 local lg = love.graphics
@@ -45,11 +46,17 @@ function ui.charmCard(id, x, y, s, rot)
     lg.translate(x, y)
     lg.rotate(rot or 0)
     lg.scale(s or 1)
-    local w, h = ui.CHARM_W, ui.CHARM_H
-    gfx.panel(-w / 2, -h / 2, w, h, {0.85, 0.80, 0.68}, 4)
-    lg.setColor(c.color[1] * 0.35, c.color[2] * 0.35, c.color[3] * 0.35)
-    lg.rectangle("fill", -w / 2 + 4, -h / 2 + 4, w - 8, h - 8, 3)
-    gfx.icon(c.icon, 0, 0, 16, c.color)
+    -- the painted relic on its own with a black outline, a little taller than its slot since the
+    -- paintings have margins; a framed icon if it has no painting
+    if art.has("relic_" .. id) then
+        art.draw("relic_" .. id, 0, ui.CHARM_H * 0.7, ui.CHARM_H * 1.4, {0, 0, 0, 1})
+    else
+        local w, h = ui.CHARM_W, ui.CHARM_H
+        gfx.panel(-w / 2, -h / 2, w, h, {0.85, 0.80, 0.68}, 4)
+        lg.setColor(c.color[1] * 0.35, c.color[2] * 0.35, c.color[3] * 0.35)
+        lg.rectangle("fill", -w / 2 + 4, -h / 2 + 4, w - 8, h - 8, 3)
+        gfx.icon(c.icon, 0, 0, 16, c.color)
+    end
     lg.pop()
 end
 
