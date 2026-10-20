@@ -412,12 +412,12 @@ R.purplewurm = {
 
 sig("piston", "Piston Fist", {bonus = 5, bash = true})
 R.golem = {
-    name = "Ironclad", title = "The Iron Golem", hp = 44, gold = 12, dieColor = {0.46, 0.40, 0.30},
+    name = "Ironclad", title = "The Iron Golem", hp = 38, gold = 12, dieColor = {0.46, 0.40, 0.30},
     quote = "INTRUDER. GAME PROTOCOL ENGAGED. PROBABILITY OF YOUR VICTORY: LOW.",
     tell = "Ironclad's runes glow brighter. Steam vents hiss...", sigLine = "PISTON FIST: ENGAGED.",
     hitLines = {"DAMAGE: MINOR.", "*clang*", "RECALCULATING."}, koLine = "SYSTEMS... FAILING...",
     every = 4, stagger = 13,
-    dice = {red(2, 2, 3, 3, 4, 4), blue(2, 3, 3, 4, 4, 5),
+    dice = {red(2, 2, 3, 3, 4, 4), blue(1, 2, 3, 3, 4, 4),
         {f("brace"), f("steady"), f("aura", 1), f("nap"), f("blank"), f("brace")}},
     signature = {f("sword", 4), f("shield", 4), f("piston", 4)},
 }
@@ -739,12 +739,12 @@ R.frostgiant = {
 
 sig("avalanche", "Avalanche", {bonus = 7})
 R.yeti = {
-    name = "Hoarfang", title = "The Yeti", hp = 40, gold = 12, dieColor = {0.60, 0.64, 0.70},
+    name = "Hoarfang", title = "The Yeti", hp = 36, gold = 12, dieColor = {0.60, 0.64, 0.70},
     quote = "*It's real. It's very real. And it's holding your dice in one enormous hairy hand.*",
     tell = "Hoarfang beats its chest. Snow slides from the peaks...", sigLine = "*HRAAAOOOOGH!*",
     hitLines = {"*grunt*", "*roar*", "*snort*"}, koLine = "*...vanishes into the blizzard...*",
     every = 3, stagger = 15,
-    dice = {red(2, 3, 3, 4, 4, 5), blue(1, 2, 2, 3, 3, 0),
+    dice = {red(2, 2, 3, 3, 4, 5), blue(1, 2, 2, 3, 3, 0),
         {f("rage", 1), f("lock", 1), f("fury", 2), f("mend", 2), f("blank"), f("rage", 1)}},
     signature = {f("sword", 5), f("shield", 2), f("avalanche", 5)},
 }

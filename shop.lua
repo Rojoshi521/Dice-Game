@@ -39,8 +39,8 @@ local function buy(i)
     sfx.play("mult", 1.2)
 end
 
--- the Merchant Prince's Signet takes 30% off drinks too
-local function drinkCost() return run.hasCharm("signet") and math.ceil(data.DRINK_COST * 0.7) or data.DRINK_COST end
+-- the Merchant Prince's Signet takes 40% off drinks too
+local function drinkCost() return run.hasCharm("signet") and math.ceil(data.DRINK_COST * 0.6) or data.DRINK_COST end
 
 local function drink()
     run.gold = run.gold - drinkCost()

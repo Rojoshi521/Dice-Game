@@ -206,9 +206,9 @@ local function charmEffects(pat, wild)
             e = {xAtk = 1.5, text = "x1.5 ATK"}
         elseif id == "bones" and rerolls > 0 then
             e = {atk = 2 * rerolls, text = "+" .. 2 * rerolls .. " ATK"}
-        elseif id == "axe" and rival.hp <= rival.maxHp / 4 then
+        elseif id == "axe" and rival.hp <= rival.maxHp / 2 then
             e = {xAtk = 2, text = "EXECUTE x2"}
-        elseif id == "hourglass" and turn % 4 == 0 then
+        elseif id == "hourglass" and turn % 3 == 0 then
             e = {xAtk = 2, xDef = 2, text = "MOONLIT x2"}
         elseif id == "horn" and turn == 1 then
             e = {xAtk = 2, text = "STORMCALL x2"}
@@ -590,7 +590,7 @@ local function win()
         lines[#lines + 1] = "+" .. loc.fastGold .. " " .. loc.rule:lower()
     end
     if run.hasCharm("piggy") then
-        local interest = math.min(10, math.floor(run.gold / 3))
+        local interest = math.min(15, math.floor(run.gold / 2))
         run.gold = run.gold + interest
         lines[#lines + 1] = "+" .. interest .. " interest"
     end
@@ -741,7 +741,7 @@ local function rivalAct()
                 if dmg > 0 and run.hasCharm("crown") and not rival.dead then
                     if AUTO_TEST then autoFired("crown") end
                     fx.text("THORN CROWN", FIELD_X, PORTRAIT_Y - 44, PAL.green, "med")
-                    damageRival(dmg, true)
+                    damageRival(dmg * 2, true)
                 end
                 local parry = data.trait(run, "parry") + catchParry   -- the Sai, and its Catch Blade
                 if dmg == 0 and parry > 0 and not rival.dead then
@@ -1040,10 +1040,11 @@ local function startPlayerTurn()
     if block > 0 then fx.text("BANK +" .. block, BLOCK_POS.x, BLOCK_POS.y - 10, PAL.blue, "med") end
     if loc and loc.block then block = block + loc.block end
     block = block + data.trait(run, "block")   -- the Warrior's guard
-    if run.hasCharm("ironring") then block = block + 5 end
+    -- the Iron Oath and the Hearthstone grow with the act, as the rivals do
+    if run.hasCharm("ironring") then block = block + 6 * (run.act or 1) end
     if run.hasCharm("ember") and run.hp < run.maxHp then
         local before = run.hp
-        run.hp = math.min(run.maxHp, run.hp + 2)
+        run.hp = math.min(run.maxHp, run.hp + 3 * (run.act or 1))
         fx.text("EMBER +" .. (run.hp - before), HP_POS.x, HP_POS.y - 14, PAL.green, "med")
     end
     startBlock, rerollsUsed = block, 0

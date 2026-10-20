@@ -665,7 +665,7 @@ end
 data.WEAPONS = {
     -- the Warrior's
     greatsword = {name = "Greatsword", title = "All or nothing", class = "warrior", color = {0.98, 0.75, 0.30}, artH = 118,
-        perk = "-2 max nerve. Red die: 1, 1, 4, 6, 6. Huge swings.", hp = -2, red = faces("sword", 1, 1, 4, 6, 6, 0)},
+        perk = "-2 max nerve. Red die: 2, 2, 6, 7, 8. Huge swings.", hp = -2, red = faces("sword", 2, 2, 6, 7, 8, 0)},
     axe        = {name = "Battle Axe", title = "Swing first", class = "warrior", color = {0.30, 0.70, 0.60}, artH = 118,
         perk = "Red die: 2, 3, 4, 5, 6. Every hand that attacks deals x1.25 damage, then +3.",
         red = faces("sword", 2, 3, 4, 5, 6, 0), atkFlat = 3, atkPct = 0.25,
@@ -684,7 +684,7 @@ data.WEAPONS = {
         perk = "-8 max nerve. Your first mixed die becomes a red die, your second a blue die.", hp = -8, staff = true,
         unlock = "Win 5 duels", wins = 5},
     wand       = {name = "Wand", title = "A spark at every cast", class = "mage", color = {0.60, 0.45, 1.00}, artH = 118,
-        perk = "-2 max nerve. Every hand that attacks deals +4 damage.", hp = -2, atkFlat = 4,
+        perk = "Every hand that attacks deals x1.2 damage, then +5.", atkFlat = 5, atkPct = 0.2,
         unlock = "Defeat Granny Nettle and Velith", beat = {"hag", "darkelf"}},
     sceptre    = {name = "Star Sceptre", title = "Commands the stars", class = "mage", color = {0.45, 0.60, 1.00}, artH = 118,
         perk = "-3 max nerve. +1 reroll each turn. Once a turn, a blank rolls again.",
@@ -819,8 +819,8 @@ data.CHARMS = {
         desc = "x1.5 attack. Lose 2 nerve at the start of every turn."},
     cup      = {name = "Chalice of Echoes", icon = "dice",   color = PURPLE, price = 8,
         desc = "Your modifier die triggers twice, and its blanks count as Lucky (+1 mult)."},
-    axe      = {name = "Headsman's Rune",   icon = "sword",  color = GREY,   price = 8,
-        desc = "Your hits ignore block. x2 attack while the rival is under a quarter nerve."},
+    axe      = {name = "Headsman's Rune",   icon = "sword",  color = GREY,   price = 7,
+        desc = "Your hits ignore block. x2 attack while the rival is under half nerve."},
     phoenix  = {name = "Phoenix Plume",     icon = "flame",  color = GOLD,   price = 7,
         desc = "The first time you'd be busted, rise with half your nerve instead. Burns up."},
     weighted = {name = "Fate's Lodestone",  icon = "lock",   color = GREY,   price = 6,
@@ -828,30 +828,30 @@ data.CHARMS = {
     stomach  = {name = "Troll-Blood Flask", icon = "heal",   color = GREEN,  price = 5,
         desc = "+15 max nerve. Recover 15 nerve after each duel."},
     piggy    = {name = "Dragon's Purse",    icon = "coin",   color = GOLD,   price = 5,
-        desc = "Comes with 10 gold. After a duel, +1 gold for every 3 you hold (max 10)."},
+        desc = "Comes with 10 gold. After a duel, +1 gold for every 2 you hold (max 15)."},
     compass  = {name = "Wayfarer's Compass", icon = "star", color = GOLD,   price = 6,
         desc = "+1 reroll every turn. +3 gold after every duel."},
     ironring = {name = "Ring of the Iron Oath", icon = "shield", color = BLUE, price = 7,
-        desc = "Start every turn with 5 block."},
+        desc = "Start every turn with 6 block per act (6, 12, 18)."},
     hourglass = {name = "Moonlit Hourglass", icon = "halo", color = PURPLE, price = 7,
-        desc = "Every 4th turn, your hand deals x2 attack and x2 defense."},
+        desc = "Every 3rd turn, your hand deals x2 attack and x2 defense."},
     ember    = {name = "Hearthstone Ember", icon = "flame", color = RED,    price = 6,
-        desc = "Recover 2 nerve at the start of every turn."},
+        desc = "Recover 3 nerve per act at the start of every turn (3, 6, 9)."},
     signet   = {name = "Merchant Prince's Signet", icon = "coin", color = GOLD, price = 5,
-        desc = "Relics and drinks cost 30% less (rounded up)."},
+        desc = "Comes with 10 gold. Relics and drinks cost 40% less (rounded up)."},
     horn     = {name = "Stormcaller's Horn", icon = "bubble", color = BLUE,  price = 7,
         desc = "Your first hand of every duel deals x2 attack."},
     crown    = {name = "Thornbriar Circlet", icon = "halo",   color = GREEN,  price = 6,
-        desc = "Rivals take all the damage they deal to you."},
+        desc = "Rivals take double the damage they deal to you."},
 }
 data.CHARM_ORDER = {"bones", "idol", "clover", "snake", "seven", "knuckles", "tower", "streak", "fang", "pact",
     "cup", "axe", "phoenix", "weighted", "stomach", "piggy", "crown", "compass", "ironring", "hourglass", "ember",
     "signet", "horn"}
 
--- What a relic costs this run: the Merchant Prince's Signet takes 30% off
+-- What a relic costs this run: the Merchant Prince's Signet takes 40% off
 function data.charmPrice(id, run)
     local price = data.CHARMS[id].price
-    return run.hasCharm("signet") and math.ceil(price * 0.7) or price
+    return run.hasCharm("signet") and math.ceil(price * 0.6) or price
 end
 data.MAX_CHARMS = 5
 
@@ -1074,13 +1074,13 @@ data.RIVALS = {
         signature = {f("sword", 3), f("shield", 4), f("regrow", 3)},
     },
     ogre = {
-        name = "Bruug", title = "Hungry Ogre", hp = 44, gold = 13, dieColor = {0.42, 0.32, 0.22},
+        name = "Bruug", title = "Hungry Ogre", hp = 40, gold = 13, dieColor = {0.42, 0.32, 0.22},
         quote = "You look crunchy. Bruug play dice first. Then lunch.",
         tell = "Bruug raises his cleaver over his head...", sigLine = "BRUUG... CRUSH!!",
         hitLines = {"Hungrier now.", "Grr!", "Bruug not like that."}, koLine = "Bruug... skip lunch...",
         every = 3, stagger = 13,
         dice = {
-            {f("sword", 3), f("sword", 4), f("sword", 5), f("sword", 5), f("sword", 6), f("blank")},
+            {f("sword", 2), f("sword", 3), f("sword", 4), f("sword", 5), f("sword", 5), f("blank")},
             {f("shield", 1), f("shield", 2), f("shield", 2), f("blank"), f("blank"), f("blank")},
             {f("nap"), f("rage", 2), f("overcommit"), f("hiccup", 1), f("rage", 1), f("blank")},
         },
@@ -1270,13 +1270,13 @@ data.RIVALS = {
         signature = {f("sword", 5), f("shield", 1), f("volley", 5)},
     },
     wurm = {
-        name = "The Gullet", title = "Corpse Wurm", hp = 56, gold = 15, dieColor = {0.42, 0.30, 0.34},
+        name = "The Gullet", title = "Corpse Wurm", hp = 48, gold = 15, dieColor = {0.42, 0.30, 0.34},
         quote = "*The ground splits. Teeth rise out of the mud, hungry.*",
         tell = "The Gullet rears back, jaws unhinging...", sigLine = "*SKRRAAAAH!* DEVOUR!",
         hitLines = {"*shriek*", "*hiss*", "*gurgle*"}, koLine = "*...sinks back into the mud...*",
         every = 3, stagger = 14,
         dice = {
-            {f("sword", 3), f("sword", 4), f("sword", 5), f("sword", 5), f("sword", 6), f("blank")},
+            {f("sword", 2), f("sword", 3), f("sword", 4), f("sword", 5), f("sword", 5), f("blank")},
             {f("shield", 1), f("shield", 2), f("shield", 2), f("shield", 3), f("blank"), f("blank")},
             {f("rot", 1), f("rage", 1), f("overcommit"), f("nap"), f("rage", 2), f("blank")},
         },
@@ -1368,7 +1368,7 @@ data.TRICK_ADDS = {
     {kind = "double", value = 0, rivals = {"wolf", "monkeys", "werewolf", "manticore", "assassin", "butcher", "darkelf"}},
     {kind = "shroud", value = 0, rivals = {"mirage", "sandstorm", "ravenborn", "fallenangel", "sphinx", "genie", "kraken"}},
     {kind = "blight", value = 0, rivals = {"plague", "rat", "fungus", "locusts", "triskeleton", "archdemon", "guardcaptain"}},
-    {kind = "bloodlust", value = 4, rivals = {"gnoll", "lizard", "wurm", "yeti", "purplewurm", "dragon", "reindeer"}},
+    {kind = "bloodlust", value = 4, rivals = {"gnoll", "lizard", "purplewurm", "dragon", "reindeer"}},
     {kind = "confuse", value = 0, rivals = {"firefly", "triceratops", "younggod", "mayor", "devil", "bandit", "goblin"}},
 }
 for _, add in ipairs(data.TRICK_ADDS) do
@@ -1403,7 +1403,7 @@ data.ACTS = {
         clear = {bg = "trail", title = "ACT I CLEARED", text = "The first power falls, and word of it runs ahead of you. "
             .. "You patch your coat, count your dice, and rest by the fire. You wake with your nerve restored."}},
     {name = "ACT II", title = "THE DEEP COUNTRY", locations = 3, bosses = {"lich", "dragon"},
-        power = 2.3, hpScale = 3.0, bossScale = 0.8, glory = {duel = 5, elite = 10, boss = 25},
+        power = 2.3, hpScale = 3.0, bossScale = 0.7, glory = {duel = 5, elite = 10, boss = 25},
         intro = {bg = "hills", title = "ACT II: THE DEEP COUNTRY", text = "The monsters grow bolder the further you go, "
             .. "and they've heard about you now. Your dice are warm. Your relics hum. Keep rolling."},
         clear = {bg = "mountain", title = "ACT II CLEARED", text = "The second power falls. The road ahead is strange: the "
