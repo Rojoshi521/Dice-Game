@@ -124,6 +124,10 @@ function love.load(args)
         if a == "--speed" then AUTO_SPEED = tonumber(args[i + 1]) end   -- autoplay speed (default 5)
         if a == "--noshots" then NOSHOTS = true end   -- autoplay without its screenshots, for big batches
         if a == "--prestige" then PRESTIGE = args[i + 1] end   -- test runs: prestige classes held, e.g. barbarian,reaver
+        if a == "--mouse" then   -- screenshots: pretend the mouse sits here (game pixels), e.g. 40,245
+            local mx, my = args[i + 1]:match("(%d+),(%d+)")
+            MOUSE = {tonumber(mx), tonumber(my)}
+        end
         if a == "--pickprestige" then PRESTIGE_PICK = args[i + 1] end   -- the prestige autoplay picks when offered
     end
     -- runs launched in the same second can share a table address, so test runs also mix in their save name
@@ -244,6 +248,7 @@ function love.update(dt)
         fx.timer(0.2, love.event.quit)
     end
     scene.mx, scene.my = toCanvas(love.mouse.getPosition())
+    if MOUSE then scene.mx, scene.my = MOUSE[1], MOUSE[2] end
     fx.update(dt)
     scene.current.update(dt)
     local target = scene.bg or gfx.BG.tavern

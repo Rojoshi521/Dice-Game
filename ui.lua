@@ -89,9 +89,33 @@ function ui.tipFace(face)
     ui.tip = {title = title, desc = data.describe(face), color = k.color}
 end
 
+-- A tip with rows instead of a description: {left, right, color} pairs in two columns, for the math
+-- behind a number; a row with no text is a gap
+local function drawRowsTip(tip)
+    local w, lh = tip.w or 200, gfx.font.small:getHeight()
+    local h = 26
+    for _, row in ipairs(tip.rows) do h = h + ((row[1] or "") == "" and lh / 2 or lh) end
+    local x = math.min(scene.mx + 10, gfx.W - w - 4)
+    local y = math.max(4, math.min(scene.my + 12, gfx.H - h - 4))
+    gfx.panel(x, y, w, h, PAL.dark, 5)
+    gfx.print(tip.title, x + 7, y + 5, "med", tip.color or PAL.cream, "left", w - 12)
+    local ry = y + 21
+    for _, row in ipairs(tip.rows) do
+        if (row[1] or "") == "" then
+            ry = ry + lh / 2
+        else
+            local color = row[3] or PAL.cream
+            gfx.print(row[1], x + 7, ry, "small", row[3] or PAL.grey, "left", w - 60)
+            gfx.print(tostring(row[2] or ""), x + w - 7 - 56, ry, "small", color, "right", 56)
+            ry = ry + lh
+        end
+    end
+end
+
 function ui.drawTip()
     local tip = ui.tip
     if not tip then return end
+    if tip.rows then return drawRowsTip(tip) end
     local w = 150
     local _, lines = gfx.font.small:getWrap(tip.desc, w - 12)
     local h = 26 + #lines * gfx.font.small:getHeight()

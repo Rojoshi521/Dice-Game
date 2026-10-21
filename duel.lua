@@ -50,6 +50,7 @@ local catchParry = 0                    -- Catch Blade's riposte, waiting on the
 local ability, abilityUsed, now, targeting
 local rage, riposteNext, jugg, warBanner, arcane, scheme   -- prestige states that last the duel
 local flourishBase, vanishTurn = 0, nil
+local lastEv                            -- the hand you last played, explained, for hovering its numbers
 local BLANK = {kind = "blank", value = 0}
 
 ---------------------------------------------------------------------------
@@ -245,12 +246,40 @@ local function charmEffects(pat, wild)
     return out
 end
 
--- Everything your current roll will do; the preview and the resolution both use this
-local function evaluate()
+-- What changed in ev since the last mark, credited to label: lines for the hover breakdowns of attack and
+-- defense (ev.why). Only built when explain is asked for, since autoplay evaluates thousands of hands.
+local WHY_STATS = {"atk", "def", "mult", "atkMult", "defMult", "xAtk", "xDef"}
+local function explainer(ev)
+    local last = {atk = 0, def = 0, mult = 0, atkMult = 0, defMult = 0, xAtk = 1, xDef = 1}
+    ev.why = {atk = {}, def = {}, mult = {}, atkMult = {}, defMult = {}, xAtk = {}, xDef = {}, after = {atk = {}, def = {}}}
+    return function(label)
+        for _, k in ipairs(WHY_STATS) do
+            local was, is = last[k], ev[k]
+            if is ~= was then
+                local list = ev.why[k]
+                if k == "xAtk" or k == "xDef" then
+                    local r = was ~= 0 and is / was or 0
+                    list[#list + 1] = {label, "x" .. (math.floor(r * 100 + 0.5) / 100)}
+                else
+                    local d = is - was
+                    list[#list + 1] = {label, (d > 0 and "+" or "") .. d}
+                end
+                last[k] = is
+            end
+        end
+    end
+end
+local function noMark() end
+
+-- Everything your current roll will do; the preview and the resolution both use this. explain: also
+-- work out ev.why, how each number came to be
+local function evaluate(explain)
     local pat, wild, parity = data.pattern(pipsOf(mine), #mine)
     local ev = {pat = pat, wild = wild, atk = 0, def = 0, mult = pat.mult, atkMult = 0, defMult = 0, gold = 0,
         heal = 0, shatter = false, poison = 0, bleed = 0, grow = 0, sunder = 0, weaken = 0, pick = 0, daze = 0, combos = {},
         xAtk = 1, xDef = 1, bolt = 0}
+    local mark = explain and explainer(ev) or noMark
+    mark(pat.name)
     -- red and blue first; Gambler doubles them
     local x2 = gambled and 2 or 1
     local swords, shields = 0, 0
@@ -261,7 +290,9 @@ local function evaluate()
         elseif face.kind == "shield" then
             ev.def, shields = ev.def + face.value * x2, shields + 1
         end
+        mark(face.kind == "sword" and ("Strike " .. face.value) or ("Guard " .. face.value))
     end
+    if gambled then mark("Gambler") end
     -- bonus combos stack on top of the pattern
     if parity then ev.combos[#ev.combos + 1] = parity end
     if swords >= 3 then ev.combos[#ev.combos + 1] = data.COMBOS.red end
@@ -269,6 +300,7 @@ local function evaluate()
     for _, c in ipairs(ev.combos) do
         ev.mult = ev.mult + (c.mult or 0)
         ev.atkMult, ev.defMult = ev.atkMult + (c.atkMult or 0), ev.defMult + (c.defMult or 0)
+        mark(c.name)
     end
     local red, blue = ev.atk, ev.def
     local ones, odds = 0, 0
@@ -411,14 +443,21 @@ local function evaluate()
             ev.mult = ev.mult + (rare.mult or 0)
             ev.poison, ev.bleed = ev.poison + (rare.poison or 0), ev.bleed + (rare.bleed or 0)
         end
+        mark(KINDS[k].name .. (rare and " III" or ""))
     end
     ev.atk = ev.atk + growth + ev.grow
+    mark("Growth")
     -- prestige: the Barbarian's rage (the Warlord's guards too), the Trophy Hunter's trophies, the
     -- Cavalier's charge, the Battlemage's arcane weapon
-    ev.atk = ev.atk + rage + data.trait(run, "trophy") * (run.trophies or 0)
+    ev.atk = ev.atk + rage
     if data.trait(run, "rageDef") > 0 then ev.def = ev.def + rage end
+    mark("Rage")
+    ev.atk = ev.atk + data.trait(run, "trophy") * (run.trophies or 0)
+    mark("Trophies")
     if now.charge then ev.atk = ev.atk + block end
+    mark("Lance Charge")
     if arcane then ev.mult = ev.mult + swords end
+    mark("Arcane Weapon")
     -- rival tricks that weaken your hand
     for _, sp in ipairs(hand and hand.specials or {}) do
         if sp.kind == "taunt" then
@@ -438,6 +477,7 @@ local function evaluate()
                 if top.kind == "sword" then ev.atk = ev.atk - cut else ev.def = ev.def - cut end
             end
         end
+        mark("His " .. KINDS[sp.kind].name)
     end
     ev.charms = charmEffects(pat, wild)
     for _, e in ipairs(ev.charms) do
@@ -445,25 +485,39 @@ local function evaluate()
         ev.atk = ev.atk + (e.atk or 0)
         ev.def = ev.def + (e.def or 0)
         ev.xAtk, ev.xDef = ev.xAtk * (e.xAtk or 1), ev.xDef * (e.xDef or 1)
+        mark(data.CHARMS[run.charms[e.index]].name)
     end
     -- race, class, weapon and background: the Mage's focus, the Rogue's opening strike, the Sailor's tides
     ev.mult = ev.mult + data.trait(run, "mult")
+    mark("Race, class and kit")
     if straight then ev.mult = ev.mult + data.trait(run, "straightMult") end
+    mark("Sailor")
     if turn == 1 and data.trait(run, "firstStrike") > 0 then ev.xAtk = ev.xAtk * data.trait(run, "firstStrike") end
+    mark("First strike")
     local rune = data.trait(run, "runeEvery")   -- the Grimoire's pages
     if rune > 0 and turn % rune == 0 then ev.xAtk = ev.xAtk * 2 end
+    mark("Grimoire")
     -- prestige passives and this turn's power
     if riposteNext then ev.mult = ev.mult + data.trait(run, "riposte") end
+    mark("Riposte")
     if warBanner > 0 then ev.mult = ev.mult + 2 end
+    mark("War Banner")
     if now.flourish then ev.mult = ev.mult + rerollsUsed - flourishBase end
+    mark("Flourish")
     if now.con then ev.mult = ev.mult + now.con end
+    mark("The Long Con")
     if rival.def.elite or rival.def.boss then ev.xAtk = ev.xAtk * (1 + data.trait(run, "bigGame")) end
+    mark("Monster Hunter")
     if vanishTurn == turn then ev.xAtk = ev.xAtk * 2 end
+    mark("Vanish")
     if now.storm then ev.xAtk, ev.poison = ev.xAtk * 2, ev.poison + 8 end
+    mark("Elemental Storm")
     if now.coin then ev.xAtk = ev.xAtk * now.coin end
+    mark("Coin flip")
     if now.assassin then
         if rival.hp <= rival.maxHp * 0.25 then ev.execute = true else ev.xAtk = ev.xAtk * 1.5 end
     end
+    mark("Assassinate")
     -- the place you're fighting in
     if loc then
         if loc.mult then ev.mult = ev.mult + loc.mult end
@@ -471,24 +525,40 @@ local function evaluate()
         if loc.straightMult and straight then ev.mult = ev.mult + loc.straightMult end
         if loc.earlyMult and turn <= loc.earlyTurns then ev.mult = ev.mult + loc.earlyMult end
         if loc.runeEvery and turn % loc.runeEvery == 0 then ev.xAtk = ev.xAtk * 2 end
+        mark(loc.name .. ": " .. loc.rule)
     end
     if now.crowd then ev.mult = ev.mult * 2 end   -- the Gladiator's crowd
+    mark("The crowd")
     ev.atk, ev.def = math.max(0, ev.atk), math.max(0, ev.def)
+    mark("Can't go below 0")
     -- the rival's curse, last so nothing adds back past it
     for _, sp in ipairs(hand and hand.specials or {}) do
         if sp.kind == "curse" then ev.mult = math.max(1, ev.mult - sp.value) end
     end
+    mark("His Curse")
     ev.atkTotal = math.floor(ev.atk * (ev.mult + ev.atkMult) * ev.xAtk)
     ev.defTotal = math.floor(ev.def * (ev.mult + ev.defMult) * ev.xDef)
+    -- what happens to the finished totals; after.atk and after.def list it for the breakdowns
+    local after = ev.why and ev.why.after
+    local atk0, def0 = ev.atkTotal, ev.defTotal
+    local function note(label)
+        if not after then return end
+        if ev.atkTotal ~= atk0 then after.atk[#after.atk + 1] = {label, ev.atkTotal} end
+        if ev.defTotal ~= def0 then after.def[#after.def + 1] = {label, ev.defTotal} end
+        atk0, def0 = ev.atkTotal, ev.defTotal
+    end
     -- the rival's tricks that twist the finished hand
     for _, sp in ipairs(hand and hand.specials or {}) do
         if sp.kind == "confuse" then ev.atkTotal, ev.defTotal = ev.defTotal, ev.atkTotal end
         if sp.kind == "blight" then ev.blight = true end
     end
+    note("His Confuse swaps them")
     if loc and ev.atkTotal > 0 then ev.atkTotal = ev.atkTotal + (loc.atk or 0) + math.floor((loc.atkPerTurn or 0) * turn) end
+    if loc then note(loc.name .. ": " .. loc.rule) end
     if ev.atkTotal > 0 then   -- the Battle Axe's bite, then the Wand's spark
         ev.atkTotal = math.floor(ev.atkTotal * (1 + data.trait(run, "atkPct"))) + data.trait(run, "atkFlat")
     end
+    note(run.weapon and data.WEAPONS[run.weapon].name or "Weapon")
     if ev.thorns then ev.thorns = math.floor(ev.defTotal / 2) + ev.thorns end
     -- the Warlock's eldritch blast and the Templar's smite strike past his guard
     ev.bolt = ev.bolt + data.trait(run, "eldritch") * ev.mult
@@ -496,6 +566,7 @@ local function evaluate()
     for _, sp in ipairs(hand and hand.specials or {}) do
         if sp.kind == "shroud" then ev.atkTotal, ev.bolt = math.floor(ev.atkTotal / 2), math.floor(ev.bolt / 2) end
     end
+    note("His Shroud halves it")
     if ev.blight then ev.heal = 0 end
     return ev
 end
@@ -736,12 +807,20 @@ local function rivalPierces()
 end
 
 -- What the rival's hand will hit you for right now; the hand summary and the attack both use this
-local function rivalAttack()
-    if not hand or hand.dizzy or trick("nap") then return 0 end
+-- why: a list to fill with {label, value} lines for the hover breakdown
+local function rivalAttack(why)
+    local function say(label, value) if why then why[#why + 1] = {label, value} end end
+    if not hand or hand.dizzy then return 0 end
+    if trick("nap") then
+        say("His Nap", "no attack")
+        return 0
+    end
+    for _, line in ipairs(why and hand.why.atk or {}) do why[#why + 1] = line end
     -- flat bonuses scale with RIVAL_POWER like the dice do; bash's guard is already scaled
     local extra, bash = 0, false
     for _, sp in ipairs(hand.specials) do
         local k, v = sp.kind, sp.value
+        local before = extra
         extra = extra + (KINDS[k].bonus or 0)
         if k == "unleash" then extra = extra + rival.patience end
         if k == "fury" and rival.took > 0 then extra = extra + v end
@@ -750,16 +829,39 @@ local function rivalAttack()
         if k == "cataclysm" then extra = extra + rival.str * 2 end
         if k == "bloodlust" and rival.hp < rival.maxHp / 2 then extra = extra + v end
         if k == "bash" or KINDS[k].bash then bash = true end
+        if extra > before then say(KINDS[k].name, "+" .. (extra - before)) end
     end
     local atk = hand.atk + math.floor(extra * rivalPower)
-    if bash then atk = atk + rival.block end
-    if atk > 0 then atk = math.max(0, atk + math.floor(rival.str * rivalPower) - weaken) end
-    if atk > 0 and loc and loc.rivalAtk then atk = atk + loc.rivalAtk end
+    if extra > 0 then say("Bonuses x" .. (math.floor(rivalPower * 100 + 0.5) / 100) .. " power", "= +" .. math.floor(extra * rivalPower)) end
+    if bash then
+        atk = atk + rival.block
+        say("Plus his guard", "+" .. rival.block)
+    end
+    if atk > 0 then
+        local str = math.floor(rival.str * rivalPower)
+        atk = math.max(0, atk + str - weaken)
+        if str > 0 then say("Strength " .. rival.str .. " x power", "+" .. str) end
+        if weaken > 0 then say("Your Weaken", "-" .. weaken) end
+    end
+    if atk > 0 and loc and loc.rivalAtk then
+        atk = atk + loc.rivalAtk
+        say(loc.name .. ": " .. loc.rule, "+" .. loc.rivalAtk)
+    end
     -- a duel that drags on makes the rival impatient, so no one can stall forever
-    if turn > data.STALL_TURN then atk = atk + math.floor((turn - data.STALL_TURN) * rivalPower) end
+    if turn > data.STALL_TURN then
+        local n = math.floor((turn - data.STALL_TURN) * rivalPower)
+        atk = atk + n
+        say("Impatient", "+" .. n)
+    end
     -- the Elementalist's frost and the Juggernaut's hide
-    if now.storm then atk = math.floor(atk / 2) end
-    if jugg > 0 then atk = math.floor(atk / 2) end
+    if now.storm then
+        atk = math.floor(atk / 2)
+        say("Your Elemental Storm", "halved")
+    end
+    if jugg > 0 then
+        atk = math.floor(atk / 2)
+        say("Unstoppable", "halved")
+    end
     return atk
 end
 
@@ -928,7 +1030,8 @@ local function resolve()
     if phase ~= "choose" then return end
     phase = "resolve"
     for _, d in ipairs(mine) do d.held = false end
-    local ev = evaluate()
+    local ev = evaluate(true)
+    lastEv = ev
     local s = {label = ev.pat.name, atk = 0, def = 0, mult = ev.pat.mult, atkPop = 0, defPop = 0, multPop = 0}
     -- test runs: tally the modifier faces played, and flag any hand whose numbers came out impossible
     if AUTO_TEST then
@@ -1289,8 +1392,21 @@ local function rivalLanded()
     hand = {pattern = pat, specials = specials, sig = isSig(),
         atk = r.kind == "sword" and math.floor(r.value * pat.mult * rivalPower) or 0,
         def = b.kind == "shield" and math.floor(b.value * pat.mult * rivalPower) or 0}
+    -- the hover breakdowns: his dice times his pattern times his power, then each trick that changed them
+    local power = math.floor(rivalPower * 100 + 0.5) / 100
+    local function base(face, kind, name)
+        if face.kind ~= kind then return {{name .. " die", "blank: 0"}} end
+        return {{name .. " die " .. face.value .. " x" .. pat.mult .. " " .. pat.name:lower(), ""},
+            {"x" .. power .. " power", "= " .. math.floor(face.value * pat.mult * rivalPower)}}
+    end
+    hand.why = {atk = base(r, "sword", "Red"), def = base(b, "shield", "Blue")}
+    local function noteTrick(k, atk0, def0)
+        if hand.atk ~= atk0 then hand.why.atk[#hand.why.atk + 1] = {"His " .. KINDS[k].name, "= " .. hand.atk} end
+        if hand.def ~= def0 then hand.why.def[#hand.why.def + 1] = {"His " .. KINDS[k].name, "= " .. hand.def} end
+    end
     for _, sp in ipairs(specials) do
         local k = sp.kind
+        local atk0, def0 = hand.atk, hand.def
         if k == "overcommit" then hand.atk, hand.def = hand.atk * 2, 0 end
         if k == "brace" then hand.def = hand.def * 2 end
         if k == "surge" and r.kind == "sword" and b.kind == "shield" and r.value % 2 == 0 and b.value % 2 == 0 then
@@ -1303,7 +1419,9 @@ local function rivalLanded()
             hand.def = hand.def + math.floor(rival.bones * rivalPower)
         end
         if k == "warcry" then rival.warcry = rival.warcry + sp.value end
+        noteTrick(k, atk0, def0)
     end
+    if rival.block > 0 then hand.why.def[#hand.why.def + 1] = {"Guard kept from last turn", "+" .. rival.block} end
     rival.block = rival.block + hand.def
     if hand.def > 0 then sfx.play("block", 0.9) end
     if pat.mult > 1 then
@@ -1789,7 +1907,7 @@ function duel.enter()
     catchParry, rerollsUsed = 0, 0
     ability, abilityUsed, now, targeting = data.ability(run), false, {}, nil
     rage, riposteNext, jugg, warBanner, arcane, scheme = 0, false, 0, 0, false, 0
-    flourishBase, vanishTurn = 0, nil
+    flourishBase, vanishTurn, lastEv = 0, nil, nil
     local camp = run.mode == "campaign" and run.chapter() or {}
     rivalPower = data.RIVAL_POWER * (camp.power or 1)
     rivalHpScale = data.RIVAL_HP_SCALE * (camp.hpScale or 1)
@@ -1882,6 +2000,63 @@ end
 -- Drawing
 ---------------------------------------------------------------------------
 
+---------------------------------------------------------------------------
+-- Hover breakdowns: the math behind your attack, mult and defense, and the rival's attack and guard
+---------------------------------------------------------------------------
+
+local function round2(n) return math.floor(n * 100 + 0.5) / 100 end
+
+-- side: "atk", "def" or "mult"
+local function handTip(ev, side)
+    local w, rows = ev.why, {}
+    local GOLD = PAL.gold
+    local function add(list, suffix)
+        for _, l in ipairs(list) do rows[#rows + 1] = {l[1] .. (suffix or ""), l[2]} end
+    end
+    local extra = side == "def" and "defMult" or "atkMult"
+    local mult = ev.mult + (side == "mult" and 0 or ev[extra])
+    if side ~= "mult" then
+        add(w[side])
+        rows[#rows + 1] = {side == "atk" and "Attack" or "Defense", "= " .. ev[side], GOLD}
+        rows[#rows + 1] = {""}
+    end
+    add(w.mult)
+    if side ~= "mult" then add(w[extra], side == "atk" and " (attack)" or " (defense)") end
+    rows[#rows + 1] = {"Mult", "= x" .. round2(mult), GOLD}
+    if side == "mult" then return {title = "MULT x" .. round2(mult), rows = rows, color = GOLD} end
+    local x = side == "atk" and ev.xAtk or ev.xDef
+    local xs = w[side == "atk" and "xAtk" or "xDef"]
+    if #xs > 0 then
+        rows[#rows + 1] = {""}
+        add(xs)
+    end
+    rows[#rows + 1] = {""}
+    local total = math.floor(ev[side] * mult * x)
+    rows[#rows + 1] = {ev[side] .. " x " .. round2(mult) .. (x ~= 1 and (" x " .. round2(x)) or ""), "= " .. total, GOLD}
+    add(w.after[side])
+    if side == "atk" and ev.bolt > 0 then rows[#rows + 1] = {"Plus bolts through his guard", "+" .. ev.bolt, PAL.purple} end
+    local final = side == "atk" and ev.atkTotal or ev.defTotal
+    return {title = (side == "atk" and "ATTACK " or "DEFENSE ") .. final, rows = rows,
+        color = side == "atk" and PAL.red or PAL.blue, w = 220}
+end
+
+local function rivalTip(side)
+    local rows = {}
+    if side == "atk" then
+        local atk = rivalAttack(rows)
+        rows[#rows + 1] = {""}
+        rows[#rows + 1] = {"Your block", block, PAL.blue}
+        rows[#rows + 1] = {"Gets through", math.max(0, atk - block), PAL.red}
+        return {title = "HIS ATTACK " .. atk, rows = rows, color = PAL.red, w = 220}
+    end
+    for _, l in ipairs(hand.why.def) do rows[#rows + 1] = l end
+    rows[#rows + 1] = {""}
+    rows[#rows + 1] = {"His guard now", rival.block, PAL.gold}
+    return {title = "HIS GUARD " .. hand.def, rows = rows, color = PAL.blue, w = 220}
+end
+
+local function hovering(x, y, w, h) return scene.mx > x and scene.mx < x + w and scene.my > y and scene.my < y + h end
+
 local function drawRival()
     local wave = math.sin(time * 2.2)
     local mood = rival.mood or baseMood()
@@ -1948,9 +2123,11 @@ end
 local function drawRivalHand()
     -- the hand's summary sits just right of the rival's last die (bosses throw five)
     local x, y = math.max(470, theirs[#theirs].x + 26), 190 - 2 * (#theirs - 3)
-    for _, d in ipairs(theirs) do
+    local pips = pipsOf(theirs)
+    for i, d in ipairs(theirs) do
         local face = faceOf(d)
         local rot = d.rot + (d.rolling > 0 and 0 or math.sin(time * 2 + d.wob) * 0.03)
+        if i <= 3 and pips[i] == "wild" and d.rolling <= 0 then wildGlow(d.x, dieY(d), RIVAL_SIZE, d.sc) end
         gfx.die(face, d.x, dieY(d), RIVAL_SIZE, rot, d.sc, {body = d.body, dim = hand and hand.dizzy,
             outline = hand and hand.sig and PAL.gold})
         if phase ~= "intro" and overDie(d, scene.mx, scene.my, RIVAL_SIZE) then ui.tipFace(face) end
@@ -1967,6 +2144,8 @@ local function drawRivalHand()
     gfx.print(atk, x + 16, y + 12, "med", PAL.red)
     gfx.icon("shield", x + 57, y + 19, 14, PAL.blue)
     gfx.print(hand.def, x + 66, y + 12, "med", PAL.blue)
+    if hovering(x, y + 10, 50, 18) then ui.tip = rivalTip("atk")
+    elseif hovering(x + 50, y + 10, 50, 18) then ui.tip = rivalTip("def") end
     local ty = y + 29
     for _, sp in ipairs(hand.specials) do
         if sp.kind ~= "blank" then
@@ -1977,13 +2156,31 @@ local function drawRivalHand()
     end
 end
 
+-- A pulsing violet halo behind a die that counts as wild, so wilds stand out at a glance
+local function wildGlow(x, y, size, sc)
+    local c = KINDS.wild.color
+    local a = 0.55 + 0.3 * math.sin(time * 5)
+    local s = size * (sc or 1)
+    for k = 3, 1, -1 do
+        lg.setColor(c[1], c[2], c[3], a * (0.18 + 0.12 * (3 - k)))
+        lg.rectangle("fill", x - s / 2 - k * 3, y - s / 2 - k * 3, s + k * 6, s + k * 6, 6 + k * 2)
+    end
+    lg.setColor(1, 1, 1)
+end
+
 local function drawMyDice()
-    for _, d in ipairs(mine) do
+    local pips = pipsOf(mine)
+    for i, d in ipairs(mine) do
         local face = faceOf(d)
         local y = dieY(d)
         local rot = d.rot + (d.rolling > 0 and 0 or math.sin(time * 2 + d.wob) * 0.04)
-        gfx.die(face, d.x, y, DIE_SIZE, rot, d.sc, {body = d.body, outline = d.held and PAL.gold, locked = d.locked,
-            dim = d.sanded or (phase == "resolve" and face.kind == "blank")})
+        local wild = pips[i] == "wild" and d.rolling <= 0
+        if wild then wildGlow(d.x, y, DIE_SIZE, d.sc) end
+        gfx.die(face, d.x, y, DIE_SIZE, rot, d.sc, {body = d.body, outline = d.held and PAL.gold or (wild and KINDS.wild.color),
+            locked = d.locked, dim = d.sanded or (phase == "resolve" and face.kind == "blank")})
+        if wild and not d.held and not d.fixed and not d.sanded then
+            gfx.print("WILD", d.x, y + 23, "small", KINDS.wild.color, "center", 60)
+        end
         if d.held then gfx.print("HELD", d.x, y + 23, "small", PAL.gold, "center", 60) end
         if d.sanded then gfx.print("SANDED", d.x, y + 23, "small", PAL.gold, "center", 60) end
         if d.fixed then gfx.print(d.fixed, d.x, y + 23, "small", PAL.gold, "center", 60) end
@@ -2023,8 +2220,19 @@ local function drawSidebar()
     gfx.print("MULT", x + 72, 186, "small", PAL.grey, "center", 40)
     gfx.print("DEF", x + 112, 186, "small", PAL.grey, "center", 40)
 
+    -- hover the boxes (your hand as it lands, or the one you're choosing) or the preview for the math
+    local shown = phase == "choose" and evaluate(true) or lastEv
+    if shown and phase ~= "intro" then
+        if hovering(x + 11, 152, 40, 28) or (phase == "choose" and hovering(x + 8, 236, 52, 18)) then
+            ui.tip = handTip(shown, "atk")
+        elseif hovering(x + 51, 152, 40, 28) or (phase == "choose" and hovering(x + 8, 220, w - 16, 16)) then
+            ui.tip = handTip(shown, "mult")
+        elseif hovering(x + 91, 152, 40, 28) or (phase == "choose" and hovering(x + 62, 236, 60, 18)) then
+            ui.tip = handTip(shown, "def")
+        end
+    end
     if phase == "choose" then
-        local ev = evaluate()
+        local ev = shown
         gfx.print("THIS HAND", x + 10, 210, "small", PAL.grey)
         gfx.print(ev.pat.name, x + 10, 222, "med", ev.mult > 1 and PAL.gold or PAL.cream)
         gfx.print("x" .. ev.mult, x + w - 10, 222, "med", PAL.gold, "right", 40)
