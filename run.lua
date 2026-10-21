@@ -161,7 +161,9 @@ function run.addCharm(id)
     run.charms[#run.charms + 1] = id
     if AUTO_TEST then print("AUTO: got relic " .. id) end
     if id == "stomach" then run.maxHp, run.hp = run.maxHp + 15, run.hp + 15 end
-    if id == "piggy" or id == "signet" then run.gold = run.gold + 10 end
+    if id == "belt" then run.maxHp, run.hp = run.maxHp + 25, run.hp + 25 end
+    if id == "signet" then run.gold = run.gold + 10 end
+    if id == "piggy" then run.gold = run.gold + 15 end
 end
 
 -- The campaign act this run is in

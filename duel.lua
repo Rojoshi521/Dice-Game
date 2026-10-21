@@ -249,8 +249,14 @@ end
 ---------------------------------------------------------------------------
 
 local function charmEffects(pat, wild)
-    local sum, swords, shields = 0, 0, 0
-    for _, p in pairs(pipsOf(mine)) do sum = sum + (p == "wild" and wild or p) end
+    local sum, swords, shields, guards, sixes = 0, 0, 0, 0, 0
+    for _, p in pairs(pipsOf(mine)) do
+        sum = sum + (p == "wild" and wild or p)
+        if p == 5 or p == 6 then sixes = sixes + 1 end   -- the Gilded Dice like 5s and 6s
+    end
+    for _, d in ipairs(mine) do
+        if faceOf(d).kind == "shield" then guards = guards + 1 end   -- the Ironbark Totem counts any die's
+    end
     -- Ogre Gauntlets and Stoneward Charm only care about the red and blue dice themselves
     for _, d in ipairs(mine) do
         local k = faceOf(d).kind
@@ -286,6 +292,20 @@ local function charmEffects(pat, wild)
             e = {xAtk = 2, text = "EXECUTE x2"}
         elseif id == "hourglass" and (turn % 3 == 0 or force) then
             e = {xAtk = 2, xDef = 2, text = "MOONLIT x2"}
+        elseif id == "ruby" and run.maxHp - run.hp >= 10 then
+            local n = math.floor((run.maxHp - run.hp) / 10)
+            e = {mult = n, text = "+" .. n .. " MULT"}
+        elseif id == "totem" and guards > 0 then
+            e = {def = 2 * guards, text = "+" .. 2 * guards .. " DEF"}
+        elseif id == "moons" and (pat.id == "pair" or pat.id == "twopair" or force) then
+            e = {xAtk = 2, text = "TWIN MOONS x2"}
+        elseif id == "gilded" and sixes > 0 then
+            e = {atk = 3 * sixes, gold = sixes, text = "+" .. 3 * sixes .. " ATK +" .. sixes .. "G"}
+        elseif id == "storm" and (pat.id == "high" or force) then
+            e = {xAtk = 3, xDef = 3, text = "STORMGLASS x3"}
+        elseif id == "piggy" and run.gold >= 15 then
+            local n = math.floor(run.gold / 15)
+            e = {atk = n, text = "+" .. n .. " ATK"}
         elseif id == "horn" and (turn == 1 or force) then
             e = {xAtk = 2, text = "STORMCALL x2"}
         end
@@ -534,7 +554,7 @@ local function evaluate(explain)
     for _, e in ipairs(ev.charms) do
         ev.mult = ev.mult + (e.mult or 0)
         ev.atk = ev.atk + (e.atk or 0)
-        ev.def = ev.def + (e.def or 0)
+        ev.def, ev.gold = ev.def + (e.def or 0), ev.gold + (e.gold or 0)
         ev.xAtk, ev.xDef = ev.xAtk * (e.xAtk or 1), ev.xDef * (e.xDef or 1)
         mark(data.CHARMS[run.charms[e.index]].name)
     end
@@ -614,7 +634,7 @@ local function evaluate(explain)
     note(run.weapon and data.WEAPONS[run.weapon].name or "Weapon")
     if ev.thorns then ev.thorns = math.floor(ev.defTotal / 2) + ev.thorns end
     -- the Warlock's eldritch blast and the Templar's smite strike past his guard
-    ev.bolt = ev.bolt + data.trait(run, "eldritch") * ev.mult
+    ev.bolt = ev.bolt + math.floor(data.trait(run, "eldritch") * ev.mult)
     if now.smite then ev.bolt, ev.heal = ev.bolt + block, ev.heal + math.floor(block / 2) end
     for _, sp in ipairs(hand and hand.specials or {}) do
         if sp.kind == "shroud" then ev.atkTotal, ev.bolt = math.floor(ev.atkTotal / 2), math.floor(ev.bolt / 2) end
@@ -999,6 +1019,13 @@ local function rivalAct()
             sfx.play("block", 1.3)
             atk = 0
         end
+        -- the Shepherd's Bell rings off his first attack of the duel
+        if atk > 0 and run.hasCharm("bell") and not rival.belled then
+            rival.belled, atk = true, 0
+            fx.text("THE BELL RINGS!", RIVAL_X - 60, PORTRAIT_Y - 30, PAL.gold, "big", {shake = true})
+            if AUTO_TEST then autoFired("bell") end
+            sfx.play("block", 1.5)
+        end
         if atk > 0 then
             fx.tween(rival, 0.12, {punch = 1}, "out", function() fx.tween(rival, 0.35, {punch = 0}) end)
             fx.timer(0.1, function()
@@ -1040,7 +1067,8 @@ local function rivalAct()
                     fx.text("PARRY", RIVAL_X - 40, PORTRAIT_Y - 44, PAL.blue, "med")
                     damageRival(parry, true)
                 end
-                local rebuke = data.trait(run, "rebuke")   -- the Tiefling's hellfire
+                -- the Tiefling's hellfire, the Outlander's grit (which grows with the act)
+                local rebuke = data.trait(run, "rebuke") + data.trait(run, "rebukeAct") * (run.act or 1)
                 if dmg > 0 and rebuke > 0 and not rival.dead then
                     fx.text("HELLFIRE", RIVAL_X + 40, PORTRAIT_Y - 30, PAL.red, "med")
                     damageRival(rebuke, true)
@@ -1269,6 +1297,7 @@ local function resolve()
         end
         if rival.took > tookBefore then   -- the Dungeon's loot, the Urchin's light fingers
             ev.gold = ev.gold + (loc and loc.hitGold or 0) + data.trait(run, "hitGold")
+            if run.hasCharm("vial") then ev.poison = ev.poison + 3 * (run.act or 1) end   -- the Venom Vial
         end
         if ev.pick > 0 and rival.took > 0 then
             ev.gold = ev.gold + ev.pick

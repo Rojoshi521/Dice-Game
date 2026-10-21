@@ -103,6 +103,8 @@ function reward.enter()
     local roles = {"red", "blue", "mixed"}
     offers = {faceOffer(roles[math.random(3)]), faceOffer("custom"), faceOffer("custom"),
         {upgrade = true, face = UPGRADE, sc = 0, lift = 0}}
+    -- the Sage knows a few more tricks
+    for _ = 1, data.trait(run, "spoils") do table.insert(offers, #offers, faceOffer("custom")) end
     -- the Sage's modifier faces fit on any die
     if run.backstory == "sage" then
         for _, o in ipairs(offers) do
