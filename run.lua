@@ -150,6 +150,9 @@ function run.new(mode)
     run.rival = "pip"
     run.race, run.class, run.backstory, run.weapon = nil, nil, nil, nil
     run.prestige = {}        -- the prestige classes earned by beating the acts' bosses, in order
+    run.boons = {}           -- passives from Millbrook's gifts and market, read by data.trait
+    run.bought = {}          -- how many of each of the market's goods this run bought
+    run.prayed = false       -- Grandmother's Prayer, once a run, has been answered
     run.trophies = 0         -- elites and bosses beaten (the Trophy Hunter counts them)
 end
 

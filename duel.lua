@@ -542,6 +542,8 @@ local function evaluate(explain)
     mark("Sailor")
     if turn == 1 and data.trait(run, "firstStrike") > 0 then ev.xAtk = ev.xAtk * data.trait(run, "firstStrike") end
     mark("First strike")
+    if turn == 1 then ev.mult = ev.mult + data.trait(run, "openMult") end   -- Battle Hymn, a hired bard
+    mark("Opening song")
     local rune = data.trait(run, "runeEvery")   -- the Grimoire's pages
     if rune > 0 and turn % rune == 0 then ev.xAtk = ev.xAtk * 2 end
     mark("Grimoire")
@@ -801,14 +803,27 @@ local function lose()
     sfx.play("lose")
 end
 
--- Phoenix Plume burns up to pull you back from a bust
+-- Whether something will pull you back from a bust: the Phoenix Plume, or Grandmother's Prayer once a run
+local function canRise()
+    return run.hasCharm("phoenix") or (data.trait(run, "lastBreath") > 0 and not run.prayed)
+end
+
+-- The Phoenix Plume burns up to pull you back from a bust (with half your nerve); failing that, the
+-- prayer does (with a quarter)
 local function rise()
-    for i, id in ipairs(run.charms) do
-        if id == "phoenix" then table.remove(run.charms, i) break end
+    local phoenix = run.hasCharm("phoenix")
+    if phoenix then
+        for i, id in ipairs(run.charms) do
+            if id == "phoenix" then table.remove(run.charms, i) break end
+        end
+        run.hp = math.floor(run.maxHp / 2)
+        if AUTO_TEST then autoFired("phoenix") end
+    else
+        run.prayed = true
+        run.hp = math.max(1, math.floor(run.maxHp / 4))
     end
-    run.hp = math.floor(run.maxHp / 2)
-    if AUTO_TEST then autoFired("phoenix") end
-    fx.text("PHOENIX!", HP_POS.x + 60, HP_POS.y, PAL.gold, "huge", {shake = true, life = 1.6})
+    fx.text(phoenix and "PHOENIX!" or "A PRAYER ANSWERED!", HP_POS.x + 60, HP_POS.y, PAL.gold, "huge",
+        {shake = true, life = 1.6})
     fx.flashScreen(1, 0.7, 0.2, 0.5)
     fx.burst(HP_POS.x + 60, HP_POS.y, 50, PAL.gold, 200)
     fx.addShake(0.5)
@@ -1068,7 +1083,7 @@ local function rivalAct()
         end)
     end
     fx.after(0.6, function()
-        if not rival.dead and run.hp <= 0 and run.hasCharm("phoenix") then rise() end
+        if not rival.dead and run.hp <= 0 and canRise() then rise() end
         if rival.dead then win() elseif run.hp <= 0 then lose() else rivalRoll() end
     end)
 end
@@ -1518,7 +1533,7 @@ local function weather()
         return true
     end
     if run.hp <= 0 then
-        if not run.hasCharm("phoenix") then
+        if not canRise() then
             lose()
             return true
         end

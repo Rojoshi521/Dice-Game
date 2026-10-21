@@ -66,7 +66,9 @@ function campaign.buy(id)
     return true
 end
 
+-- Glory earned; the Bards' Tales add 10% a level (rounded up)
 function campaign.earn(n)
+    n = math.ceil(n * (1 + 0.1 * campaign.level("fame")))
     campaign.state().glory = save.glory + n
     campaign.write()
 end
@@ -151,6 +153,10 @@ function campaign.newRun()
     -- what the outfit screen offers before setting out
     run.perks = {relics = L("heirloom"), upgrades = L("whetstone"), rerolls = L("quick"),
         draft = L("hedge") > 0, backstory = true, redraws = L("pastlife")}
+    -- the gifts that work as passives all run long
+    for _, u in ipairs(data.VILLAGE) do
+        if u.boon and L(u.id) > 0 then run.boons[u.boon] = (run.boons[u.boon] or 0) + u.per * L(u.id) end
+    end
 end
 
 -- From the title screen: the prologue the first time, then home to Millbrook

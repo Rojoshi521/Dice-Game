@@ -1,5 +1,5 @@
--- Millbrook: the peasant's home between campaign runs. Spend glory on permanent upgrades,
--- then set out on another three-act run.
+-- Millbrook: the peasant's home between campaign runs. Spend glory on permanent upgrades (three tabs of
+-- them: the homestead, the armoury and the road), then set out on another three-act run.
 
 local data = require("data")
 local gfx = require("gfx")
@@ -12,24 +12,38 @@ local lg = love.graphics
 local PAL = gfx.PAL
 
 local village = {}
-local time, buttons, pops
+local time, buttons, pops, tab
 
 local FIELD_X = 394
-local CARD_W, CARD_H, COL_GAP, ROW_GAP, TOP = 228, 50, 238, 56, 58
+local CARD_W, CARD_H, COL_GAP, ROW_GAP, TOP = 228, 46, 238, 52, 70
+local TAB_Y, TAB_W, TAB_H = 42, 140, 20
 
-local function cardPos(i)
-    local col, row = (i - 1) % 2, math.floor((i - 1) / 2)
+-- The upgrades on the open tab, as indices into data.VILLAGE
+local function shown()
+    local list = {}
+    for i, u in ipairs(data.VILLAGE) do
+        if u.tab == tab then list[#list + 1] = i end
+    end
+    return list
+end
+
+local function cardPos(k)
+    local col, row = (k - 1) % 2, math.floor((k - 1) / 2)
     return FIELD_X - COL_GAP / 2 + col * COL_GAP - CARD_W / 2, TOP + row * ROW_GAP
 end
 
-local function overCard(i, x, y)
-    local cx, cy = cardPos(i)
+local function overCard(k, x, y)
+    local cx, cy = cardPos(k)
     return x >= cx and x <= cx + CARD_W and y >= cy and y <= cy + CARD_H
+end
+
+local function tabBox(t)
+    return {x = FIELD_X + (t - (#data.VILLAGE_TABS + 1) / 2) * (TAB_W + 8) - TAB_W / 2, y = TAB_Y, w = TAB_W, h = TAB_H}
 end
 
 function village.enter()
     scene.bg, scene.dim = gfx.BG.hearth, 0.7
-    time, pops = 0, {}
+    time, pops, tab = 0, {}, tab or data.VILLAGE_TABS[1].id
     for i in ipairs(data.VILLAGE) do pops[i] = {sc = 1} end
     buttons = {
         go = {x = 12, y = 290, w = 132, h = 26, label = "SET OUT", color = {0.62, 0.40, 0.14}},
@@ -41,13 +55,13 @@ function village.update(dt)
     time = time + dt
 end
 
-local function buy(i)
+local function buy(i, k)
     local u = data.VILLAGE[i]
     if not campaign.buy(u.id) then
         sfx.play("block", 0.7)
         return
     end
-    local cx, cy = cardPos(i)
+    local cx, cy = cardPos(k)
     pops[i].sc = 1.08
     fx.tween(pops[i], 0.4, {sc = 1}, "elastic")
     fx.burst(cx + CARD_W / 2, cy + CARD_H / 2, 30, PAL.gold, 140)
@@ -69,19 +83,30 @@ function village.mousepressed(x, y)
         sfx.play("click")
         return scene.go("title")
     end
-    for i in ipairs(data.VILLAGE) do
-        if overCard(i, x, y) then return buy(i) end
+    for t, def in ipairs(data.VILLAGE_TABS) do
+        if gfx.inside(tabBox(t), x, y) and def.id ~= tab then
+            tab = def.id
+            return sfx.play("click", 1.1)
+        end
+    end
+    for k, i in ipairs(shown()) do
+        if overCard(k, x, y) then return buy(i, k) end
     end
 end
 
--- Autoplay: buy the cheapest affordable upgrade, otherwise set out
+-- Autoplay: buy the cheapest affordable upgrade on any tab, otherwise set out
 function village.auto()
     local best, bestCost
     for i, u in ipairs(data.VILLAGE) do
         local cost = campaign.cost(u.id)
         if cost and cost <= campaign.state().glory and (not bestCost or cost < bestCost) then best, bestCost = i, cost end
     end
-    if best then return buy(best) end
+    if best then
+        tab = data.VILLAGE[best].tab
+        for k, i in ipairs(shown()) do
+            if i == best then return buy(i, k) end
+        end
+    end
     setOut()
 end
 
@@ -104,13 +129,21 @@ function village.draw()
     gfx.button(buttons.go, scene.mx, scene.my)
     gfx.button(buttons.back, scene.mx, scene.my)
 
-    gfx.fancy("MILLBROOK'S GIFTS", FIELD_X, 34, "big", PAL.cream, 1, math.sin(time * 1.5) * 0.02, 1, time)
+    gfx.fancy("MILLBROOK'S GIFTS", FIELD_X, 22, "big", PAL.cream, 1, math.sin(time * 1.5) * 0.02, 1, time)
+    for t, def in ipairs(data.VILLAGE_TABS) do
+        local b = tabBox(t)
+        local open = def.id == tab
+        local hot = not open and gfx.inside(b, scene.mx, scene.my)
+        gfx.panel(b.x, b.y, b.w, b.h, open and {0.62, 0.40, 0.14} or (hot and PAL.panelHi or {0.12, 0.10, 0.12, 0.92}), 5)
+        gfx.print(def.name, b.x + b.w / 2, b.y + 4, "small", open and PAL.cream or PAL.grey, "center", b.w)
+    end
     local tip
-    for i, u in ipairs(data.VILLAGE) do
-        local px, py = cardPos(i)
+    for k, i in ipairs(shown()) do
+        local u = data.VILLAGE[i]
+        local px, py = cardPos(k)
         local lvl, cost = campaign.level(u.id), campaign.cost(u.id)
         local can = cost and save.glory >= cost
-        local hot = overCard(i, scene.mx, scene.my)
+        local hot = overCard(k, scene.mx, scene.my)
         lg.push()
         lg.translate(px + CARD_W / 2, py + CARD_H / 2)
         lg.scale(pops[i].sc)
@@ -120,15 +153,15 @@ function village.draw()
             lg.rectangle("fill", px - 3, py - 3, CARD_W + 6, CARD_H + 6, 7)
         end
         gfx.panel(px, py, CARD_W, CARD_H, {0.12, 0.10, 0.12, 0.92}, 6)
-        gfx.icon(u.icon, px + 18, py + 18, 16, lvl > 0 and PAL.gold or PAL.grey)
-        gfx.print(u.name, px + 34, py + 7, "med", lvl > 0 and PAL.cream or PAL.grey)
+        gfx.icon(u.icon, px + 18, py + 17, 16, lvl > 0 and PAL.gold or PAL.grey)
+        gfx.print(u.name, px + 34, py + 6, "med", lvl > 0 and PAL.cream or PAL.grey)
         -- one pip per level
-        for k = 1, #u.costs do
-            lg.setColor(k <= lvl and PAL.gold or {1, 1, 1, 0.18})
-            lg.circle("fill", px + 13 + (k - 1) * 8, py + 38, 2.8)
+        for p = 1, #u.costs do
+            lg.setColor(p <= lvl and PAL.gold or {1, 1, 1, 0.18})
+            lg.circle("fill", px + 13 + (p - 1) * 8, py + 35, 2.8)
         end
         local label = cost and (cost .. " glory") or "MAX"
-        gfx.print(label, px + CARD_W - 8, py + 30, "small", cost and (can and PAL.gold or PAL.red) or PAL.green,
+        gfx.print(label, px + CARD_W - 8, py + 28, "small", cost and (can and PAL.gold or PAL.red) or PAL.green,
             "right", 80)
         lg.pop()
         if hot then tip = u end

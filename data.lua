@@ -678,7 +678,7 @@ function data.ability(run)
     end
 end
 
--- The sum of a passive across the run's race, class, weapon, background and prestiges
+-- The sum of a passive across the run's race, class, weapon, background, prestiges and boons
 function data.trait(run, key)
     local p = run.prestige or {}
     local defs = {data.RACES[run.race or ""], data.CLASSES[run.class or ""], data.WEAPONS[run.weapon or ""],
@@ -688,6 +688,9 @@ function data.trait(run, key)
         local def = defs[i]
         if def and def[key] then total = total + (def[key] == true and 1 or def[key]) end
     end
+    -- and Millbrook's gifts and the market's goods for this run (run.boons)
+    local boon = run.boons and run.boons[key]
+    if boon then total = total + (boon == true and 1 or boon) end
     return total
 end
 
@@ -791,6 +794,22 @@ data.BACKSTORIES = {
 data.BACKSTORY_ORDER = {"acolyte", "artisan", "criminal", "spy", "cultist", "entertainer", "farmer", "folkhero",
     "gladiator", "hermit", "investigator", "merchant", "noble", "outlander", "sage", "soldier", "urchin", "sailor"}
 data.BACKGROUND_OFFERS = 5   -- backgrounds on offer each run
+
+-- The gold each race, class and background brings to a run (added by data.applyPick), to spend at
+-- Millbrook's market before Act I and on the road after
+do
+    local START_GOLD = {
+        RACES = {human = 15, dwarf = 20, gnome = 15, highelf = 10, woodelf = 5, halfling = 25, goliath = 5,
+            tauren = 5, tiefling = 10},
+        CLASSES = {warrior = 10, mage = 10, rogue = 20},
+        BACKSTORIES = {acolyte = 5, artisan = 10, criminal = 15, spy = 10, cultist = 5, entertainer = 15,
+            farmer = 10, folkhero = 5, gladiator = 10, hermit = 0, investigator = 10, merchant = 30, noble = 25,
+            outlander = 0, sage = 5, soldier = 10, urchin = 0, sailor = 10},
+    }
+    for tableName, golds in pairs(START_GOLD) do
+        for id, g in pairs(golds) do data[tableName][id].gold = g end
+    end
+end
 -- Campaign weapons, picked after the class; each belongs to one class. Each rewrites some of your
 -- dice; faces are written for a fresh peasant, and whatever upgrades, knack and class already added to
 -- that die stays on top. 0 is a blank. hp changes your max nerve (the price of a strong weapon);
@@ -992,10 +1011,11 @@ data.CHARM_ORDER = {"bones", "idol", "clover", "snake", "seven", "knuckles", "to
     "cup", "axe", "phoenix", "weighted", "stomach", "piggy", "crown", "compass", "ironring", "hourglass", "ember",
     "signet", "horn"}
 
--- What a relic costs this run: the Merchant Prince's Signet takes 40% off
+-- What a relic costs this run: the Merchant Prince's Signet takes 40% off, a haggler a little more
 function data.charmPrice(id, run)
     local price = data.CHARMS[id].price
-    return run.hasCharm("signet") and math.ceil(price * 0.6) or price
+    if run.hasCharm("signet") then price = math.ceil(price * 0.6) end
+    return math.max(1, price - data.trait(run, "haggle"))
 end
 data.MAX_CHARMS = 5
 
@@ -1618,28 +1638,95 @@ data.PEASANT_DICE = {
     {role = "custom", faces = {f("spare", 1), f("mend", 1), f("power", 1), f("fortify", 1), f("blank"), f("blank")}},
 }
 
--- Millbrook's permanent upgrades, bought with glory; costs list one price per level
+-- Millbrook's permanent upgrades, bought with glory; costs list one price per level. tab: which page of
+-- the village screen it's on (data.VILLAGE_TABS). boon, per: what a level adds to run.boons for every
+-- run (see campaign.newRun); the rest are read by name.
+data.VILLAGE_TABS = {
+    {id = "home", name = "HOMESTEAD"},
+    {id = "arms", name = "ARMOURY"},
+    {id = "road", name = "THE ROAD"},
+}
 data.VILLAGE = {
-    {id = "tough",     name = "Hardy Constitution", icon = "heal",   costs = {6, 10, 16, 24},
+    -- the homestead: the hero's health, wealth and history
+    {id = "tough",     name = "Hardy Constitution", icon = "heal",   costs = {6, 10, 16, 24}, tab = "home",
         desc = "+6 max nerve per level."},
-    {id = "pitchfork", name = "Sharpened Pitchfork", icon = "sword", costs = {8, 18},
-        desc = "Your red die's faces count 1 higher per level."},
-    {id = "potlid",    name = "Patched Pot-Lid",    icon = "shield", costs = {8, 18},
-        desc = "Your blue die's faces count 1 higher per level."},
-    {id = "drill",     name = "Militia Drill",      icon = "3",      costs = {12},
-        desc = "Your mixed dice read 1, 2, 3 instead of 1, 1, 2."},
-    {id = "purse",     name = "Coin Purse",         icon = "coin",   costs = {5, 10, 16},
+    {id = "purse",     name = "Coin Purse",         icon = "coin",   costs = {5, 10, 16}, tab = "home",
         desc = "Start each run with 8 more gold per level."},
-    {id = "quick",     name = "Quick Hands",        icon = "dice",   costs = {25},
-        desc = "+1 reroll every turn."},
-    {id = "heirloom",  name = "Family Heirloom",    icon = "crown",  costs = {12, 28},
+    {id = "heirloom",  name = "Family Heirloom",    icon = "crown",  costs = {12, 28}, tab = "home",
         desc = "Start each run with a relic per level."},
-    {id = "hedge",     name = "Hedge Witch's Lessons", icon = "star", costs = {16},
-        desc = "Draft your modifier die at the start of each run."},
-    {id = "whetstone", name = "Whetstone",          icon = "+",      costs = {10, 20},
-        desc = "Upgrade one face at the start of each run, per level."},
-    {id = "pastlife",  name = "A Past Life",        icon = "eye",    costs = {20},
+    {id = "pastlife",  name = "A Past Life",        icon = "eye",    costs = {20}, tab = "home",
         desc = "Once a run, redraw the backgrounds on offer."},
+    {id = "rations",   name = "Smokehouse Rations", icon = "flame",  costs = {8, 16}, tab = "home",
+        boon = "restHeal", per = 6, desc = "Resting at a hearth recovers 6 more nerve per level."},
+    {id = "healer",    name = "Village Healer",     icon = "heal",   costs = {10, 20}, tab = "home",
+        boon = "winHeal", per = 3, desc = "Recover 3 nerve after every win, per level."},
+    {id = "prayer",    name = "Grandmother's Prayer", icon = "halo", costs = {30}, tab = "home",
+        boon = "lastBreath", per = 1,
+        desc = "Once a run, when you'd be busted, get back up with a quarter of your nerve."},
+    {id = "census",    name = "Crowded Square",     icon = "eye",    costs = {12}, tab = "home",
+        boon = "moreOffers", per = 1, desc = "One more race and one more background to choose from."},
+    {id = "fame",      name = "Bards' Tales",       icon = "bubble", costs = {15, 30}, tab = "home",
+        desc = "Earn 10% more glory per level."},
+    -- the armoury: dice and duels
+    {id = "pitchfork", name = "Sharpened Pitchfork", icon = "sword", costs = {8, 18}, tab = "arms",
+        desc = "Your red die's faces count 1 higher per level."},
+    {id = "potlid",    name = "Patched Pot-Lid",    icon = "shield", costs = {8, 18}, tab = "arms",
+        desc = "Your blue die's faces count 1 higher per level."},
+    {id = "drill",     name = "Militia Drill",      icon = "3",      costs = {12}, tab = "arms",
+        desc = "Your mixed dice read 1, 2, 3 instead of 1, 1, 2."},
+    {id = "quick",     name = "Quick Hands",        icon = "dice",   costs = {25}, tab = "arms",
+        desc = "+1 reroll every turn."},
+    {id = "hedge",     name = "Hedge Witch's Lessons", icon = "star", costs = {16}, tab = "arms",
+        desc = "Draft your modifier die at the start of each run."},
+    {id = "whetstone", name = "Whetstone",          icon = "+",      costs = {10, 20}, tab = "arms",
+        desc = "Upgrade one face at the start of each run, per level."},
+    {id = "almanac",   name = "Farmer's Almanac",   icon = "star",   costs = {14}, tab = "arms",
+        boon = "draftOffers", per = 1, desc = "Drafting your modifier die offers 4 faces to choose from, not 3."},
+    {id = "rabbit",    name = "Rabbit's Foot",      icon = "1",      costs = {22}, tab = "arms",
+        boon = "luckyBlank", per = 1, desc = "Once a turn, a die that lands on a blank rolls again."},
+    {id = "hymn",      name = "Battle Hymn",        icon = "bubble", costs = {12, 24}, tab = "arms",
+        boon = "openMult", per = 1, desc = "+1 mult on your first hand of every duel, per level."},
+    {id = "watch",     name = "Watchtower Drills",  icon = "shield", costs = {10, 22}, tab = "arms",
+        boon = "block", per = 2, desc = "Start every turn with 2 block, per level."},
+    -- the road: gold, shops and finding your way
+    {id = "bounty",    name = "Bounty Board",       icon = "coin",   costs = {8, 16}, tab = "road",
+        boon = "winGold", per = 3, desc = "+3 gold after every win, per level."},
+    {id = "haggle",    name = "Haggler's Tongue",   icon = "coin",   costs = {10, 20}, tab = "road",
+        boon = "haggle", per = 1, desc = "Relics at the peddler cost 1 gold less per level."},
+    {id = "charter",   name = "Market Charter",     icon = "crown",  costs = {8, 16}, tab = "road",
+        boon = "marketDiscount", per = 0.15, desc = "Millbrook's market sells for 15% less per level."},
+    {id = "scouts",    name = "Scouting Party",     icon = "eye",    costs = {18}, tab = "road",
+        boon = "reveal", per = 1, desc = "You can see what every mystery stop holds."},
+    {id = "smithy",    name = "Smithy Expansion",   icon = "sword",  costs = {14}, tab = "road",
+        boon = "rackSize", per = 1, desc = "One more weapon on the rack to choose from."},
+    {id = "pockets",   name = "Deep Pockets",       icon = "dice",   costs = {35}, tab = "road",
+        boon = "charmSlots", per = 1, desc = "Carry one more relic."},
+}
+
+-- Millbrook's market, open once before Act I: gold spent here on anything but relics. limit: how many
+-- times it can be bought (nil: once). boon, per: what each purchase adds to run.boons; the rest act
+-- when bought (see town.lua).
+data.TOWN = {
+    {id = "temper",  name = "Blacksmith: Temper",  icon = "+",      price = 12, limit = 3,
+        desc = "Upgrade a face of your choice: II raises its number, III adds a rare bonus."},
+    {id = "carve",   name = "Carver: New Face",    icon = "dice",   price = 14, limit = 2,
+        desc = "Choose 1 of 3 faces from your class's pool and carve it onto your modifier die."},
+    {id = "sharpen", name = "Grindstone",          icon = "sword",  price = 18,
+        desc = "Every face on your red die counts 1 higher."},
+    {id = "brace",   name = "Shield Strapping",    icon = "shield", price = 18,
+        desc = "Every face on your blue die counts 1 higher."},
+    {id = "tonic",   name = "Apothecary: Tonic",   icon = "heal",   price = 10, limit = 3,
+        desc = "+6 max nerve."},
+    {id = "blessing", name = "Temple Blessing",    icon = "halo",   price = 12, boon = "winHeal", per = 3,
+        desc = "Recover 3 nerve after every win this run."},
+    {id = "drills",  name = "Sergeant's Drills",   icon = "shield", price = 15, boon = "block", per = 2,
+        desc = "Start every turn with 2 block this run."},
+    {id = "bard",    name = "Hire a Bard",         icon = "bubble", price = 14, boon = "openMult", per = 1,
+        desc = "+1 mult on your first hand of every duel this run."},
+    {id = "map",     name = "Cartographer's Map",  icon = "eye",    price = 10, boon = "reveal", per = 1,
+        desc = "See what every mystery stop holds this run."},
+    {id = "wager",   name = "Dice Den: Wager",     icon = "dice",   price = 5, limit = 3,
+        desc = "Roll against the house: on a 4 or higher, win 12 gold back."},
 }
 data.NODE_TYPES = {
     duel   = {name = "Duel",     icon = "sword", color = RED},

@@ -37,18 +37,26 @@ local function cardOrder()
     return backgrounds, data.BACKSTORIES
 end
 
--- Card i's centre x, top, width and height
+-- Card i's centre x, top, width and height; cards narrow to fit when more are on offer (Crowded Square,
+-- Smithy Expansion)
+local FIELD_SPAN = 476
 local function cardBox(i)
     if step == "backstory" then
-        return FIELD_X + (i - (#backgrounds + 1) / 2) * BG_GAP, BG_TOP, BG_W, BG_H
+        local gap = math.min(BG_GAP, FIELD_SPAN / #backgrounds)
+        return FIELD_X + (i - (#backgrounds + 1) / 2) * gap, BG_TOP, math.min(BG_W, gap - 6), BG_H
     end
+    local n = #cardOrder()
+    local gap = math.min(CARD_GAP, FIELD_SPAN / n)
     -- class cards run a little taller to fit their starting modifier die
-    return FIELD_X + (i - (#cardOrder() + 1) / 2) * CARD_GAP, CARD_TOP, CARD_W, step == "class" and CARD_H + 16 or CARD_H
+    return FIELD_X + (i - (n + 1) / 2) * gap, CARD_TOP, math.min(CARD_W, gap - 10), step == "class" and CARD_H + 16 or CARD_H
 end
 
 local function relicPos(i) return FIELD_X + (i - (#relics + 1) / 2) * 110, RELIC_Y end
 local function facePos(i, j) return FIELD_X + (j - 3.5) * (FACE + 8), ROW_Y + (i - 1) * ROW_GAP end
-local function draftPos(i) return FIELD_X + (i - 2) * DRAFT_GAP, DRAFT_Y end
+local function draftPos(i)
+    local gap = math.min(DRAFT_GAP, FIELD_SPAN / #draftOffers)
+    return FIELD_X + (i - (#draftOffers + 1) / 2) * gap, DRAFT_Y
+end
 local function slotPos(j) return FIELD_X + (j - 3.5) * (FACE + 8), SLOT_Y end
 
 local function overCard(i, x, y)
@@ -79,10 +87,8 @@ local function leave()
         print(string.format("AUTO: outfit %s %s %s %s", run.class or "-", run.weapon or "-", run.race or "-",
             run.backstory or "-"))
     end
-    -- the campaign opens with Act I's story, then the first choice of where to go
-    if run.mode == "campaign" then
-        return require("story").play({run.chapter().intro}, function() scene.go("route") end)
-    end
+    -- the campaign stops at Millbrook's market, then opens with Act I's story and the first choice of road
+    if run.mode == "campaign" then return scene.go("town") end
     scene.go("map")
 end
 
@@ -107,7 +113,7 @@ end
 local function dealDraft()
     local pool = data.modPool(run)
     draftOffers = {}
-    for i = 1, 3 do
+    for i = 1, 3 + data.trait(run, "draftOffers") do   -- the Farmer's Almanac offers a fourth
         local f = pool[math.random(#pool)]
         draftOffers[i] = {face = {kind = f.kind, value = f.value}, sc = 0}
         fx.tween(draftOffers[i], 0.25 + i * 0.08, {sc = 1}, "back")
@@ -118,14 +124,14 @@ end
 local function dealBackgrounds()
     local pool = {unpack(data.BACKSTORY_ORDER)}
     backgrounds = {}
-    for i = 1, math.min(data.BACKGROUND_OFFERS, #pool) do backgrounds[i] = table.remove(pool, math.random(#pool)) end
+    for i = 1, math.min(data.BACKGROUND_OFFERS + data.trait(run, "moreOffers"), #pool) do backgrounds[i] = table.remove(pool, math.random(#pool)) end
 end
 
 -- Three races to choose from, different every run
 local function dealRaces()
     local pool = {unpack(data.RACE_ORDER)}
     races = {}
-    for i = 1, math.min(3, #pool) do races[i] = table.remove(pool, math.random(#pool)) end
+    for i = 1, math.min(3 + data.trait(run, "moreOffers"), #pool) do races[i] = table.remove(pool, math.random(#pool)) end
 end
 
 local function startRelics()
@@ -169,7 +175,7 @@ local function goTo(s)
             if data.WEAPONS[id].class == run.class and campaign.hasWeapon(id) then pool[#pool + 1] = id end
         end
         rack = {}
-        for i = 1, math.min(data.WEAPON_OFFERS, #pool) do rack[i] = table.remove(pool, math.random(#pool)) end
+        for i = 1, math.min(data.WEAPON_OFFERS + data.trait(run, "rackSize"), #pool) do rack[i] = table.remove(pool, math.random(#pool)) end
         if WEAPON then rack = WEAPON == "none" and {} or {WEAPON} end   -- test runs: --weapon
     end
     if s == "race" then dealRaces() end
@@ -414,7 +420,7 @@ local function drawArt(id, cx, top, mood)
         local c = data.CLASSES[id]
         local look = run.race .. "_" .. id
         art.draw(art.has(look) and look or run.race, cx, top + 123 - lift, nil, glowFor(c.color, mood), 0)
-        gfx.icon(c.icon, cx + CARD_W / 2 - 22, top + 24, 16, c.color)
+        gfx.icon(c.icon, cx + select(3, cardBox(1)) / 2 - 22, top + 24, 16, c.color)
     end
 end
 
@@ -449,6 +455,16 @@ local function dimUnpicked(x, top, w, h, picked)
     end
 end
 
+-- The gold a pick brings to the run, in a small badge over the corner of its picture
+local function goldBadge(def, x, y)
+    if not def.gold or def.gold <= 0 then return end
+    local text = "+" .. def.gold
+    local w = gfx.font.small:getWidth(text) + 20
+    gfx.panel(x, y, w, 15, {0.08, 0.07, 0.09, 0.88}, 4)
+    gfx.icon("coin", x + 8, y + 7.5, 10, PAL.gold)
+    gfx.print(text, x + 15, y + 2, "small", PAL.gold, "left", w)
+end
+
 -- A background card: its painting, name and passive
 local function drawBackgroundCard(i)
     local id = backgrounds[i]
@@ -460,6 +476,7 @@ local function drawBackgroundCard(i)
     cardGlow(x, top, w, h, b.color, hot or picked)
     gfx.panel(x, top, w, h, PAL.dark, 6)
     gfx.picture("bk_" .. id, x + 4, top + 4, w - 8, 92)
+    goldBadge(b, x + 6, top + 6)
     local name = b.name:upper()
     gfx.fancy(name, cx, top + 110, "med", b.color, math.min(1, (w - 8) / gfx.font.med:getWidth(name)),
         hot and math.sin(time * 3) * 0.04 or 0, 1, time)
@@ -486,6 +503,7 @@ local function drawCard(i)
     gfx.scissor(x + 6, top + 6, w - 12, 118)
     drawArt(id, cx, top, mood)
     gfx.scissor()
+    goldBadge(def, x + 9, top + 9)
 
     local name = def.name:upper()
     gfx.fancy(name, cx, top + 142, "med", c, math.min(1, (w - 10) / gfx.font.med:getWidth(name)),

@@ -24,9 +24,12 @@ local function sharpenable(face)
     return face.kind ~= "blank" and not k.label and (k.step or 0) >= 0 and face.value < data.MAX_FACE
 end
 
+-- Smokehouse Rations make a rest go further
+local function restHeal() return data.REST_HEAL + data.trait(run, "restHeal") end
+
 local function rest()
     local before = run.hp
-    run.hp = math.min(run.maxHp, run.hp + data.REST_HEAL)
+    run.hp = math.min(run.maxHp, run.hp + restHeal())
     fx.text("+" .. (run.hp - before), 118, 74, PAL.green, "big")
     fx.burst(FIELD_X, 150, 30, {1, 0.6, 0.2}, 120)
     sfx.play("heal")
@@ -61,7 +64,7 @@ function hearth.enter()
         for j = 1, #die.faces do anims[i][j] = {sc = 1} end
     end
     buttons = {
-        rest = {x = FIELD_X - 150, y = 92, w = 136, h = 40, label = "REST  +" .. data.REST_HEAL, color = PAL.green},
+        rest = {x = FIELD_X - 150, y = 92, w = 136, h = 40, label = "REST  +" .. restHeal(), color = PAL.green},
         sharpen = {x = FIELD_X + 14, y = 92, w = 136, h = 40, label = "SHARPEN +1", color = PAL.red},
         go = {x = 12, y = 318, w = 132, h = 26, label = "ONWARD", color = PAL.blue},
     }
