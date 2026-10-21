@@ -76,7 +76,7 @@ end
 
 local function relicPool()
     local pool = {}
-    if #run.charms >= data.MAX_CHARMS then return pool end
+    if #run.charms >= data.maxCharms(run) then return pool end
     for _, id in ipairs(data.CHARM_ORDER) do
         if not run.hasCharm(id) then pool[#pool + 1] = id end
     end

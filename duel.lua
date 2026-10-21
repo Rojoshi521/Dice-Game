@@ -45,6 +45,11 @@ local startHp                           -- your nerve when the duel began
 local startBlock = 0                    -- the block you began this turn with (Counter reads it)
 local rerollsUsed = 0                   -- rerolls spent this turn (Starfall reads it)
 local catchParry = 0                    -- Catch Blade's riposte, waiting on the rival's attack
+-- prestige: the once-a-duel power (data.ability), whether it's spent, what it does this turn (reset
+-- every rival roll), and a die or face it's waiting for you to click
+local ability, abilityUsed, now, targeting
+local rage, riposteNext, jugg, warBanner, arcane, scheme   -- prestige states that last the duel
+local flourishBase, vanishTurn = 0, nil
 local BLANK = {kind = "blank", value = 0}
 
 ---------------------------------------------------------------------------
@@ -130,6 +135,20 @@ local function land(d)
         d.face = drawFace(d)
         fx.text("LUCKY!", d.x, d.y - 36, PAL.gold, "small")
     end
+    -- the Rune Knight's etched die rolls twice and keeps the better face
+    local function worth(j) return d.faces[j].kind == "blank" and -1 or d.faces[j].value end
+    if d.rune and not d.override then
+        local other = drawFace(d)
+        if worth(other) > worth(d.face) then d.face = other end
+    end
+    -- the Charlatan's crooked rerolls never come up blank or 1
+    if d.crooked and not d.override then
+        for _ = 1, 8 do
+            if d.faces[d.face].kind ~= "blank" and d.faces[d.face].value ~= 1 then break end
+            d.face = drawFace(d)
+        end
+    end
+    d.crooked = nil
     d.rot = (math.random() - 0.5) * 0.2
     d.sc = 1.35
     fx.tween(d, 0.4, {sc = 1}, "elastic")
@@ -162,7 +181,8 @@ local function pipsOf(list)
     local pips = {}
     for i, d in ipairs(list) do
         local face = faceOf(d)
-        if face.kind == "twin" then
+        if list == mine and now and now.transmute and d.role == "mixed" then pips[i] = "wild"   -- the Alchemist's
+        elseif face.kind == "twin" then
             local red = faceOf(list[1])
             if red.kind ~= "blank" then pips[i] = red.value end
         elseif face.kind == "wild" then pips[i] = "wild"
@@ -186,31 +206,35 @@ local function charmEffects(pat, wild)
         elseif k == "shield" and d.role == "blue" then shields = shields + 1 end
     end
     local big = ({full = true, quad = true, grand = true, fate = true})[pat.id]
+    -- the Relicsmith's Masterwork: every condition counts as met
+    local force = now and now.masterwork
+    if force then swords, shields = math.max(1, swords), math.max(1, shields) end
     local out = {}
     for i, id in ipairs(run.charms) do
         local e
-        if id == "idol" and big then
+        if id == "idol" and (big or force) then
             e = {xAtk = 2, text = "x2 ATK"}
-        elseif id == "clover" and pat.id ~= "high" then
+        elseif id == "clover" and (pat.id ~= "high" or force) then
             e = {mult = 1, text = "+1 MULT"}
-        elseif id == "seven" and sum > 0 and sum % 7 == 0 then
+        elseif id == "seven" and ((sum > 0 and sum % 7 == 0) or force) then
             e = {xAtk = 3, xDef = 3, text = "x3 ALL"}
         elseif id == "knuckles" and swords > 0 then
             e = {atk = 3 * swords, text = "+" .. 3 * swords .. " ATK"}
         elseif id == "tower" and shields > 0 then
             e = {def = 3 * shields, text = "+" .. 3 * shields .. " DEF"}
-        elseif id == "streak" and pat.id ~= "high" then
+        elseif id == "streak" and (pat.id ~= "high" or force) then
             local n = math.min(3, streak + 1)
             e = {mult = n, text = "+" .. n .. " MULT"}
         elseif id == "pact" then
             e = {xAtk = 1.5, text = "x1.5 ATK"}
-        elseif id == "bones" and rerolls > 0 then
-            e = {atk = 2 * rerolls, text = "+" .. 2 * rerolls .. " ATK"}
-        elseif id == "axe" and rival.hp <= rival.maxHp / 2 then
+        elseif id == "bones" and (rerolls > 0 or force) then
+            local n = math.max(1, rerolls)
+            e = {atk = 2 * n, text = "+" .. 2 * n .. " ATK"}
+        elseif id == "axe" and (rival.hp <= rival.maxHp / 2 or force) then
             e = {xAtk = 2, text = "EXECUTE x2"}
-        elseif id == "hourglass" and turn % 3 == 0 then
+        elseif id == "hourglass" and (turn % 3 == 0 or force) then
             e = {xAtk = 2, xDef = 2, text = "MOONLIT x2"}
-        elseif id == "horn" and turn == 1 then
+        elseif id == "horn" and (turn == 1 or force) then
             e = {xAtk = 2, text = "STORMCALL x2"}
         end
         if e then
@@ -389,6 +413,12 @@ local function evaluate()
         end
     end
     ev.atk = ev.atk + growth + ev.grow
+    -- prestige: the Barbarian's rage (the Warlord's guards too), the Trophy Hunter's trophies, the
+    -- Cavalier's charge, the Battlemage's arcane weapon
+    ev.atk = ev.atk + rage + data.trait(run, "trophy") * (run.trophies or 0)
+    if data.trait(run, "rageDef") > 0 then ev.def = ev.def + rage end
+    if now.charge then ev.atk = ev.atk + block end
+    if arcane then ev.mult = ev.mult + swords end
     -- rival tricks that weaken your hand
     for _, sp in ipairs(hand and hand.specials or {}) do
         if sp.kind == "taunt" then
@@ -422,6 +452,18 @@ local function evaluate()
     if turn == 1 and data.trait(run, "firstStrike") > 0 then ev.xAtk = ev.xAtk * data.trait(run, "firstStrike") end
     local rune = data.trait(run, "runeEvery")   -- the Grimoire's pages
     if rune > 0 and turn % rune == 0 then ev.xAtk = ev.xAtk * 2 end
+    -- prestige passives and this turn's power
+    if riposteNext then ev.mult = ev.mult + data.trait(run, "riposte") end
+    if warBanner > 0 then ev.mult = ev.mult + 2 end
+    if now.flourish then ev.mult = ev.mult + rerollsUsed - flourishBase end
+    if now.con then ev.mult = ev.mult + now.con end
+    if rival.def.elite or rival.def.boss then ev.xAtk = ev.xAtk * (1 + data.trait(run, "bigGame")) end
+    if vanishTurn == turn then ev.xAtk = ev.xAtk * 2 end
+    if now.storm then ev.xAtk, ev.poison = ev.xAtk * 2, ev.poison + 8 end
+    if now.coin then ev.xAtk = ev.xAtk * now.coin end
+    if now.assassin then
+        if rival.hp <= rival.maxHp * 0.25 then ev.execute = true else ev.xAtk = ev.xAtk * 1.5 end
+    end
     -- the place you're fighting in
     if loc then
         if loc.mult then ev.mult = ev.mult + loc.mult end
@@ -430,6 +472,7 @@ local function evaluate()
         if loc.earlyMult and turn <= loc.earlyTurns then ev.mult = ev.mult + loc.earlyMult end
         if loc.runeEvery and turn % loc.runeEvery == 0 then ev.xAtk = ev.xAtk * 2 end
     end
+    if now.crowd then ev.mult = ev.mult * 2 end   -- the Gladiator's crowd
     ev.atk, ev.def = math.max(0, ev.atk), math.max(0, ev.def)
     -- the rival's curse, last so nothing adds back past it
     for _, sp in ipairs(hand and hand.specials or {}) do
@@ -447,6 +490,9 @@ local function evaluate()
         ev.atkTotal = math.floor(ev.atkTotal * (1 + data.trait(run, "atkPct"))) + data.trait(run, "atkFlat")
     end
     if ev.thorns then ev.thorns = math.floor(ev.defTotal / 2) + ev.thorns end
+    -- the Warlock's eldritch blast and the Templar's smite strike past his guard
+    ev.bolt = ev.bolt + data.trait(run, "eldritch") * ev.mult
+    if now.smite then ev.bolt, ev.heal = ev.bolt + block, ev.heal + math.floor(block / 2) end
     for _, sp in ipairs(hand and hand.specials or {}) do
         if sp.kind == "shroud" then ev.atkTotal, ev.bolt = math.floor(ev.atkTotal / 2), math.floor(ev.bolt / 2) end
     end
@@ -483,6 +529,7 @@ local function pierces()
 end
 
 local function damageRival(n, pierce)
+    if rival.cursed then n = math.floor(n * 1.5) end   -- the Hexblade's curse
     local absorbed = pierce and 0 or math.min(rival.block, n)
     local dmg = n - absorbed
     rival.block = rival.block - absorbed
@@ -563,7 +610,8 @@ local playerTurn, rivalRoll
 
 local function win()
     phase = "won"
-    local reward = rival.def.gold
+    local reward = math.floor(rival.def.gold * (1 + data.trait(run, "winGoldPct")))   -- the Gambler's cut
+    if rival.def.elite or rival.def.boss then run.trophies = (run.trophies or 0) + 1 end
     local lines = {}
     if reward > 0 then lines[#lines + 1] = "+" .. reward .. " gold" end
     run.gold = run.gold + reward
@@ -650,13 +698,20 @@ end
 
 local function finish()
     if phase == "won" and not rival.def.boss then
+        -- the Tomb Raider's treasure: an elite's hoard holds a relic
+        if rival.def.elite and data.trait(run, "treasure") > 0 then
+            return require("prestige").relicGift(function() scene.go("reward") end)
+        end
         scene.go("reward")
     elseif run.mode == "campaign" and phase == "won" and run.act < #data.ACTS then
-        -- an act's boss: rest, then on to the next act with everything you carry
-        local pages = {run.chapter().clear}
-        run.nextAct()
-        pages[2] = run.chapter().intro
-        require("story").play(pages, function() scene.go("route") end)
+        -- an act's boss: your class prestiges, then on to the next act with everything you carry, rested
+        local story = require("story")
+        story.play({run.chapter().clear}, function()
+            require("prestige").play(function()
+                run.nextAct()
+                story.play({run.chapter().intro}, function() scene.go("route") end)
+            end)
+        end)
     elseif run.mode == "campaign" then
         local pages = {unpack(data.CAMPAIGN_STORY[phase == "won" and "victory" or "defeat"])}
         for _, p in ipairs(require("campaign").checkUnlocks()) do pages[#pages + 1] = p end
@@ -702,6 +757,9 @@ local function rivalAttack()
     if atk > 0 and loc and loc.rivalAtk then atk = atk + loc.rivalAtk end
     -- a duel that drags on makes the rival impatient, so no one can stall forever
     if turn > data.STALL_TURN then atk = atk + math.floor((turn - data.STALL_TURN) * rivalPower) end
+    -- the Elementalist's frost and the Juggernaut's hide
+    if now.storm then atk = math.floor(atk / 2) end
+    if jugg > 0 then atk = math.floor(atk / 2) end
     return atk
 end
 
@@ -721,6 +779,20 @@ local function rivalAct()
         end
         local atk = rivalAttack()
         if trick("unleash") then rival.patience = 0 end
+        -- prestige powers that stop the blow: the Abjurer's ward, the Infiltrator's vanish, the Imposter's turnabout
+        if atk > 0 and (now.ward or now.vanish or now.turnabout) then
+            if now.ward then
+                bank = bank + atk
+                fx.text("WARDED +" .. atk, BLOCK_POS.x + 40, BLOCK_POS.y - 24, PAL.blue, "med", {shake = true})
+            elseif now.vanish then
+                fx.text("VANISHED!", FIELD_X + 30, PORTRAIT_Y - 30, PAL.grey, "big")
+            else
+                fx.text("TURNABOUT!", FIELD_X, PORTRAIT_Y - 44, PAL.purple, "big", {shake = true})
+                damageRival(atk, true)
+            end
+            sfx.play("block", 1.3)
+            atk = 0
+        end
         if atk > 0 then
             fx.tween(rival, 0.12, {punch = 1}, "out", function() fx.tween(rival, 0.35, {punch = 0}) end)
             fx.timer(0.1, function()
@@ -733,6 +805,17 @@ local function rivalAct()
                     fx.text("AGAIN!", FIELD_X + 30, PORTRAIT_Y - 30, PAL.red, "med")
                     dmg = dmg + hurtPlayer(math.floor(atk / 2), pierce ~= nil)
                 end
+                -- the Barbarian's rage (doubled while the Juggernaut is unstoppable), the Duelist's riposte
+                local gain = data.trait(run, "rage") * (jugg > 0 and 2 or 1)
+                if dmg > 0 and gain > 0 then
+                    rage = rage + gain
+                    fx.text("RAGE +" .. rage, HP_POS.x + 40, HP_POS.y + 14, PAL.red, "med", {shake = true})
+                end
+                if dmg == 0 and data.trait(run, "riposte") > 0 then
+                    riposteNext = true
+                    fx.text("RIPOSTE!", BLOCK_POS.x + 40, BLOCK_POS.y - 24, PAL.gold, "med")
+                end
+                if jugg > 0 then jugg = jugg - 1 end
                 if dmg > 0 and trick("drain") and not rival.dead then
                     local before = rival.hp
                     rival.hp = math.min(rival.maxHp, rival.hp + dmg)
@@ -942,12 +1025,25 @@ local function resolve()
             sfx.play("block", 0.7)
         end
         local tookBefore = rival.took
-        if ev.atkTotal > 0 then damageRival(ev.atkTotal, pierces()) end
+        if ev.execute then   -- the Assassin's killing blow
+            fx.text("ASSASSINATED!", FIELD_X, PORTRAIT_Y - 44, PAL.red, "huge", {shake = true, life = 1.4})
+            damageRival(rival.hp, true)
+        end
+        if ev.atkTotal > 0 and not rival.dead then damageRival(ev.atkTotal, pierces()) end
         -- Arcane Bolt and Shiv strike past his guard
         if ev.bolt > 0 and not rival.dead then
             fx.text("BOLT", FIELD_X - 50, PORTRAIT_Y - 44, PAL.purple, "med")
             damageRival(ev.bolt, true)
         end
+        -- the Beastmaster's wolf
+        local wolf = data.trait(run, "wolf")
+        if wolf > 0 and not rival.dead then
+            fx.text(now.sic and "SIC 'EM!" or "WOLF", FIELD_X + 50, PORTRAIT_Y - 20, PAL.gold, "med")
+            damageRival(wolf * (run.act or 1) * (now.sic and 4 or 1), true)
+            rival.bleed = rival.bleed + 1
+        end
+        local lifesteal = data.trait(run, "lifesteal")   -- the Reaver's thirst
+        if lifesteal > 0 then ev.heal = ev.heal + math.floor((rival.took - tookBefore) * lifesteal) end
         -- his Spikes bite back when you hurt him
         local spikes = trick("spikes")
         if spikes and rival.took > tookBefore then
@@ -968,6 +1064,12 @@ local function resolve()
         end
         weaken = ev.weaken
         if weaken > 0 then fx.text("WEAKENED -" .. weaken, 548, RIVAL_DICE_Y + 26, PAL.grey, "med", {shake = true}) end
+        if now.charge then block = 0 end   -- the Cavalier's block went into the lance
+        -- prestige states this hand used up
+        riposteNext = false
+        if warBanner > 0 then warBanner = warBanner - 1 end
+        if now.con then scheme = 0 end
+        if now.vanish then vanishTurn = turn + 1 end
         if ev.defTotal > 0 then
             block = block + ev.defTotal
             fx.text("+" .. ev.defTotal, BLOCK_POS.x, BLOCK_POS.y - 10, PAL.blue, "big")
@@ -1036,8 +1138,11 @@ end
 
 local function startPlayerTurn()
     phase = "rolling"
-    block, bank = bank, 0
-    if block > 0 then fx.text("BANK +" .. block, BLOCK_POS.x, BLOCK_POS.y - 10, PAL.blue, "med") end
+    -- the Knight keeps some of the block his attack didn't break
+    local kept = math.floor(block * data.trait(run, "carryBlock"))
+    block, bank = bank + kept, 0
+    if block > 0 then fx.text((kept > 0 and "HELD +" or "BANK +") .. block, BLOCK_POS.x, BLOCK_POS.y - 10, PAL.blue, "med") end
+    if ability == "longcon" then scheme = scheme + 1 end
     if loc and loc.block then block = block + loc.block end
     block = block + data.trait(run, "block")   -- the Warrior's guard
     -- the Iron Oath and the Hearthstone grow with the act, as the rivals do
@@ -1261,8 +1366,14 @@ function rivalRoll()
         fx.text("IMPATIENT! +ATK EVERY TURN", FIELD_X, PORTRAIT_Y - 60, PAL.red, "med", {shake = true, life = 2})
     end
     if weather() then return end
+    now, targeting = {}, nil
     rival.block, rival.carry = rival.carry + (loc and loc.rivalBlock or 0), 0
     rival.took, rival.parried, rival.flicked = 0, 0, false
+    -- the Monster Hunter's trap springs on his signature turn
+    if rival.baited and isSig() then
+        rival.baited, rival.staggered = false, true
+        fx.text("TRAPPED!", FIELD_X, PORTRAIT_Y - 44, PAL.gold, "huge", {shake = true, life = 1.4})
+    end
     if rival.staggered then
         rival.staggered, rival.dizzy = false, true
         hand = {dizzy = true}
@@ -1297,6 +1408,9 @@ local function reroll()
     rerolls = rerolls - 1
     rerolled, rerollsUsed = true, rerollsUsed + 1
     phase = "rolling"
+    if data.trait(run, "crooked") > 0 then
+        for _, d in ipairs(mine) do d.crooked = not d.held and not d.locked and not d.fixed end
+    end
     roll(mine, function(d) return not d.held and not d.locked and not d.fixed end)
 end
 
@@ -1304,6 +1418,167 @@ local function toggleHold(d)
     if d.locked or d.fixed then return end
     d.held = not d.held
     sfx.play("click", d.held and 1.2 or 0.9)
+end
+
+---------------------------------------------------------------------------
+-- Prestige powers: once a duel, from the button left of REROLL, while you choose your hand
+---------------------------------------------------------------------------
+
+local ABILITY_LABELS = {
+    smite = "SMITE", rune = "ETCH RUNE", charge = "CHARGE", unstoppable = "UNSTOPPABLE", banner = "WAR BANNER",
+    offering = "BLOOD OFFER", crowd = "THE CROWD", bait = "BAIT TRAP", flourish = "FLOURISH", transmute = "TRANSMUTE",
+    barrage = "BARRAGE", masterwork = "MASTERWORK", raise = "RAISE DEAD", wickedhex = "WICKED HEX", curse = "CURSE",
+    storm = "STORM", ward = "WARD", arcaneweapon = "ARCANE ARMS", vanish = "VANISH", assassinate = "ASSASSINATE",
+    guide = "GUIDING STAR", sic = "SIC 'EM", turnabout = "TURNABOUT", doubleornothing = "COIN FLIP",
+    longcon = "LONG CON",
+}
+
+-- The prestige whose power this is, for its description
+local function abilityDef()
+    for _, id in ipairs(run.prestige or {}) do
+        if data.PRESTIGES[id].ability == ability then return data.PRESTIGES[id] end
+    end
+end
+
+local function canUseAbility() return ability ~= nil and not abilityUsed and phase == "choose" end
+
+-- A bone die rises beside your dice for the rest of the duel
+local function raiseDead()
+    local faces = {}
+    for j, v in ipairs({2, 2, 3, 3, 4, 4}) do faces[j] = {kind = "sword", value = v} end
+    local d = newDie(faces, {0.55, 0.52, 0.42}, FIELD_X, TRAY_Y + 90)
+    d.mine, d.role = true, "bone"
+    mine[#mine + 1] = d
+    for i, o in ipairs(mine) do
+        fx.tween(o, 0.35, {x = FIELD_X + (i - (#mine + 1) / 2) * DIE_GAP, y = TRAY_Y}, "back")
+    end
+    fx.burst(FIELD_X, TRAY_Y, 30, {0.7, 0.9, 0.6}, 140)
+    phase = "rolling"
+    roll({d})
+end
+
+-- Blanks the best face on his red and on his blue die for the rest of the duel
+local function wickedHex()
+    for i = 1, 2 do
+        local d = theirs[i]
+        local faces, best = {}, nil
+        for j, face in ipairs(d.faces) do
+            faces[j] = {kind = face.kind, value = face.value}   -- his dice are shared with his entry in data
+            if face.kind ~= "blank" and (not best or face.value > faces[best].value) then best = j end
+        end
+        if best then faces[best] = {kind = "blank", value = 0} end
+        d.faces = faces
+        d.sc = 1.4
+        fx.tween(d, 0.4, {sc = 1}, "elastic")
+        fx.text("HEXED", d.x, d.y - 26, PAL.purple, "med", {shake = true})
+        fx.burst(d.x, d.y, 16, PAL.purple, 100)
+    end
+end
+
+-- Spends the power; rune and guide wait for you to click a die (and a face) first
+local function useAbility()
+    if not canUseAbility() then return end
+    if (ability == "rune" or ability == "guide") and not targeting then
+        targeting = {}
+        return sfx.play("click", 1.2)
+    end
+    abilityUsed, targeting = true, nil
+    local a = ability
+    if AUTO_TEST then print(string.format("AUTO: ability %s on turn %d, rival %d/%d", a, turn, rival.hp, rival.maxHp)) end
+    fx.text(ABILITY_LABELS[a] .. "!", FIELD_X, TRAY_Y - 46, abilityDef().color, "big", {shake = true, life = 1.2})
+    fx.flashScreen(1, 0.85, 0.5, 0.2)
+    fx.addShake(0.3)
+    sfx.play("mult", 0.7)
+    if a == "unstoppable" then jugg = 2
+    elseif a == "banner" then warBanner = 3
+    elseif a == "offering" then
+        local cost = math.floor(run.hp / 3)
+        run.hp, rage, hpShake = run.hp - cost, rage + cost, 1
+        fx.text("-" .. cost, HP_POS.x, HP_POS.y, PAL.red, "big")
+    elseif a == "bait" then rival.baited = true
+    elseif a == "flourish" then
+        rerolls, flourishBase, now.flourish = rerolls + 4, rerollsUsed, true
+    elseif a == "barrage" then
+        damageRival(6 * #run.charms, true)
+        if rival.dead then win() end
+    elseif a == "raise" then raiseDead()
+    elseif a == "wickedhex" then wickedHex()
+    elseif a == "curse" then rival.cursed = true
+    elseif a == "arcaneweapon" then arcane = true
+    elseif a == "assassinate" then now.assassin = true
+    elseif a == "doubleornothing" then
+        now.coin = math.random() < 0.5 and 3 or 0.5
+        fx.text(now.coin > 1 and "HEADS! x3" or "TAILS... x0.5", FIELD_X, TRAY_Y - 30, now.coin > 1 and PAL.gold or PAL.red,
+            "big", {shake = true, life = 1.4})
+    elseif a == "longcon" then now.con = scheme
+    else now[a] = true end   -- the rest only change this turn: see evaluate, resolve and rivalAct
+end
+
+-- Where the Wayfinder's face choices sit, above the chosen die
+local function guidePos(d, j) return d.x + (j - (#d.faces + 1) / 2) * 30, TRAY_Y + 36 end
+
+-- A click while a power waits on a target; true when it was used up
+local function aim(x, y)
+    if ability == "rune" then
+        for _, d in ipairs(mine) do
+            if overDie(d, x, y, DIE_SIZE) then
+                d.rune = true
+                fx.text("RUNE", d.x, d.y - 36, PAL.blue, "med", {shake = true})
+                fx.burst(d.x, d.y, 20, PAL.blue, 100)
+                useAbility()
+                return true
+            end
+        end
+        return false
+    end
+    local die = targeting.die
+    if die then
+        for j, face in ipairs(die.faces) do
+            local fx_, fy = guidePos(die, j)
+            if math.abs(x - fx_) < 13 and math.abs(y - fy) < 13 then
+                die.face, die.override, die.held = j, nil, true
+                die.sc = 1.4
+                fx.tween(die, 0.4, {sc = 1}, "elastic")
+                fx.burst(die.x, die.y, 20, PAL.gold, 100)
+                useAbility()
+                return true
+            end
+        end
+    end
+    for _, d in ipairs(mine) do
+        if overDie(d, x, y, DIE_SIZE) and not d.locked then
+            targeting.die = d
+            sfx.play("click", 1.1)
+            return true
+        end
+    end
+    return false
+end
+
+local function drawAbility()
+    if not ability or phase == "intro" or phase == "won" or phase == "lost" then return end
+    local def = abilityDef()
+    local b = buttons.ability
+    b.label = ABILITY_LABELS[ability] .. (ability == "longcon" and not abilityUsed and (" " .. scheme) or "")
+    if targeting then b.label = "CANCEL" end
+    b.color = def.color
+    b.enabled = canUseAbility()
+    gfx.button(b, scene.mx, scene.my)
+    if abilityUsed then gfx.print("USED", b.x + b.w / 2, b.y - 11, "small", PAL.grey, "center", b.w) end
+    if gfx.inside(b, scene.mx, scene.my) then ui.tip = {title = def.name:upper(), desc = def.perk, color = def.color} end
+    if targeting then
+        local text = ability == "rune" and "Click a die to etch" or (targeting.die and "Pick its face" or "Click a die to turn")
+        gfx.print(text, FIELD_X, TRAY_Y - 40, "med", PAL.gold, "center", 240)
+        local die = targeting.die
+        if die then
+            for j, face in ipairs(die.faces) do
+                local px, py = guidePos(die, j)
+                local hot = math.abs(scene.mx - px) < 13 and math.abs(scene.my - py) < 13
+                gfx.die(face, px, py - (hot and 3 or 0), 24, 0, 1, {body = die.body, outline = hot and PAL.gold})
+                if hot then ui.tipFace(face) end
+            end
+        end
+    end
 end
 
 local function begin()
@@ -1319,6 +1594,17 @@ function duel.mousepressed(x, y)
         return
     end
     if phase ~= "choose" then return end
+    if ability and gfx.inside(buttons.ability, x, y) then
+        if targeting then
+            targeting = nil
+            return sfx.play("click", 0.9)
+        end
+        return useAbility()
+    end
+    if targeting then
+        aim(x, y)
+        return
+    end
     for _, d in ipairs(mine) do
         if overDie(d, x, y, DIE_SIZE) then return toggleHold(d) end
     end
@@ -1337,6 +1623,8 @@ function duel.keypressed(key)
         resolve()
     elseif key == "r" then
         reroll()
+    elseif key == "a" then
+        useAbility()
     elseif n and mine[n] then
         toggleHold(mine[n])
     end
@@ -1386,16 +1674,68 @@ local function autoRerollSet()
     return bestSet
 end
 
+-- Autoplay's prestige power: the ones that last the duel or answer a big blow go at once; the ones
+-- that power up a single hand wait for the final hand (final) and go when they add a good share of
+-- his nerve. Returns true when it used the power (or began aiming it).
+local function autoAbility(final)
+    if not canUseAbility() then return false end
+    local a = ability
+    local function worth(flag, value)
+        local base = handValue(evaluate())
+        now[flag] = value or true
+        local v = handValue(evaluate())
+        now[flag] = nil
+        return v - base >= math.max(8, rival.hp * 0.2) or (v >= 100 and base < 100)
+    end
+    local use
+    if a == "banner" or a == "raise" or a == "wickedhex" or a == "curse" or a == "arcaneweapon" or a == "barrage"
+        or a == "flourish" then
+        use = true
+    elseif a == "unstoppable" or a == "ward" or a == "vanish" or a == "turnabout" then
+        use = rivalAttack() - block >= math.max(10, run.hp * 0.25)
+    elseif a == "bait" then use = isTell()
+    elseif a == "offering" then use = run.hp > run.maxHp * 0.6
+    elseif a == "rune" then
+        targeting = {}
+        return aim(mine[1].x, dieY(mine[1]))
+    elseif not final then return false
+    elseif a == "assassinate" then use = rival.hp <= rival.maxHp * 0.25 or worth("assassin")
+    elseif a == "doubleornothing" then use = worth("coin", 1.75)
+    elseif a == "longcon" then use = scheme >= 4 and worth("con", scheme)
+    elseif a == "guide" then
+        -- the die and face worth the most
+        local best, bd, bj = handValue(evaluate()) + 5, nil, nil
+        for _, d in ipairs(mine) do
+            if not d.locked then
+                local keep = d.face
+                for j in ipairs(d.faces) do
+                    d.face = j
+                    local v = handValue(evaluate())
+                    if v > best then best, bd, bj = v, d, j end
+                end
+                d.face = keep
+            end
+        end
+        if not bd then return false end
+        targeting = {die = bd}
+        return aim(guidePos(bd, bj))
+    else use = worth(a) end
+    if use then useAbility() end
+    return use
+end
+
 -- Autoplay for testing: reroll whichever dice are expected to improve the hand most, under every rule in play
 function duel.auto()
     if phase == "intro" then return begin() end
     if phase == "choose" then
+        if autoAbility(false) then return end
         local set = canReroll() and autoRerollSet()
         if set then
             for _, d in ipairs(mine) do d.held = true end
             for _, d in ipairs(set) do d.held = false end
             return reroll()
         end
+        if autoAbility(true) then return end
         return resolve()
     end
     if (phase == "won" or phase == "lost") and banner.t > 0.6 then
@@ -1447,6 +1787,9 @@ function duel.enter()
     lastMod, growth, thorns, bank, gambled, spareUsed, rerolled, weaken, luckyUsed = nil, 0, 0, 0, false, false, false, 0, 0
     charmAnim = {}
     catchParry, rerollsUsed = 0, 0
+    ability, abilityUsed, now, targeting = data.ability(run), false, {}, nil
+    rage, riposteNext, jugg, warBanner, arcane, scheme = 0, false, 0, 0, false, 0
+    flourishBase, vanishTurn = 0, nil
     local camp = run.mode == "campaign" and run.chapter() or {}
     rivalPower = data.RIVAL_POWER * (camp.power or 1)
     rivalHpScale = data.RIVAL_HP_SCALE * (camp.hpScale or 1)
@@ -1492,6 +1835,7 @@ function duel.enter()
         reroll = {x = FIELD_X - 126, y = 316, w = 120, h = 26, label = "REROLL", color = PAL.red},
         fight = {x = FIELD_X + 6, y = 316, w = 120, h = 26, label = "PLAY HAND", color = PAL.blue},
         continue = {x = FIELD_X - 70, y = 196, w = 140, h = 30, label = "SPOILS", color = PAL.blue},
+        ability = {x = FIELD_X - 232, y = 316, w = 100, h = 26, label = "", color = PAL.gold},
     }
     phase = "intro"
     sfx.play("mult", 0.5)
@@ -1703,6 +2047,8 @@ local function drawSidebar()
         if ev.pick > 0 then extras[#extras + 1] = "pickpocket" end
         if ev.bolt > 0 then extras[#extras + 1] = "bolt " .. ev.bolt end
         if ev.envenom then extras[#extras + 1] = "envenom" end
+        if rage > 0 then extras[#extras + 1] = "rage +" .. rage end
+        if ev.execute then extras[#extras + 1] = "ASSASSINATE" end
         gfx.print(table.concat(extras, " "), x + 10, 256, "small", PAL.green, "left", w - 16)
     end
 
@@ -1776,6 +2122,7 @@ function duel.draw()
         gfx.button(buttons.reroll, scene.mx, scene.my)
         gfx.button(buttons.fight, scene.mx, scene.my)
     end
+    drawAbility()
     if bubble and phase ~= "intro" then ui.bubble(bubble.text, FIELD_X + 70, 50, 160, bubble.t) end
 
     if phase == "intro" then

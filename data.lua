@@ -535,12 +535,156 @@ data.CLASSES = {
 }
 data.CLASS_ORDER = {"warrior", "mage", "rogue"}
 
--- The sum of a passive across the run's race, class, weapon and background
+-- Prestige classes: beating a campaign act's boss promotes your class. After Act I you pick one of
+-- your class's three first prestiges, after Act II one of that prestige's three second ones. They add
+-- to the class, never replace it. Set-up passives work as a race's do (hp, bump, rerolls), plus gifts
+-- given on promotion: giftRelic (choose 1 of 3 relics, swapping one out if your pockets are full) and
+-- giftUpgrades (face upgrades). Duel passives are read through data.trait, adding:
+--   carryBlock (share of leftover block kept into your next turn), rage (attack gained for the rest of
+--   the duel each time a rival hurts you), rageDef (rage adds to defense too), riposte (mult on your
+--   next hand after your block stops a whole attack), charmSlots (extra relic slots), eldritch (damage
+--   through guard per point of mult), steal (one free relic in every shop), reveal (mystery stops
+--   shown on the map), stepHeal (nerve every time you move to a new stop), crooked (rerolls never land
+--   on blanks or 1s), lifesteal (share of damage dealt recovered), bigGame (extra attack share against
+--   elites and bosses), winGoldPct (extra share of a rival's purse), treasure (elite wins offer a
+--   relic), trophy (attack per elite and boss beaten this run), wolf (a bite through guard every turn,
+--   per act)
+-- ability: a once-per-duel power with its own button (see duel.lua's ABILITIES)
+data.PRESTIGES = {
+    -- the Warrior's
+    knight = {name = "Knight", title = "Holds the line", color = {0.55, 0.65, 0.95},
+        perk = "All your leftover block carries into your next turn. Gift: your blue die's faces +2.",
+        carryBlock = 1, bump = {blue = 2}},
+    templar = {name = "Templar", title = "Faith made steel", color = {0.98, 0.85, 0.45}, ability = "smite",
+        perk = "DIVINE SMITE: once a duel, your hand also deals your block as damage through his guard, "
+            .. "and you recover half of it."},
+    runeknight = {name = "Rune Knight", title = "Steel that remembers", color = {0.45, 0.80, 0.95}, ability = "rune",
+        perk = "ETCH A RUNE: once a duel, choose one of your dice. For the rest of the duel it rolls twice "
+            .. "and keeps the better face."},
+    cavalier = {name = "Cavalier", title = "Lance first, questions later", color = {0.85, 0.60, 0.30}, ability = "charge",
+        perk = "LANCE CHARGE: once a duel, your block is added to this hand's attack before mult. "
+            .. "Then your block drops to 0."},
+    barbarian = {name = "Barbarian", title = "Pain is fuel", color = {0.90, 0.30, 0.25},
+        perk = "RAGE: every time a rival hurts you, +2 attack for the rest of the duel. Gift: +8 max nerve.",
+        rage = 2, hp = 8},
+    juggernaut = {name = "Juggernaut", title = "Cannot be stopped", color = {0.65, 0.55, 0.50}, ability = "unstoppable",
+        perk = "UNSTOPPABLE: once a duel, his next 2 attacks deal half damage, and the rage they give you "
+            .. "counts double."},
+    warlord = {name = "Warlord", title = "Leads from the front", color = {0.95, 0.55, 0.25}, ability = "banner",
+        perk = "WAR BANNER: once a duel, your next 3 hands get +2 mult. Your rage adds to your defense too.",
+        rageDef = true},
+    reaver = {name = "Reaver", title = "Drinks the fight", color = {0.75, 0.15, 0.20}, ability = "offering",
+        perk = "BLOOD OFFERING: once a duel, lose a third of your nerve and gain that much rage. "
+            .. "You recover 20% of the damage you deal.", lifesteal = 0.2},
+    duelist = {name = "Duelist", title = "One blade, one rival", color = {0.80, 0.80, 0.90},
+        perk = "RIPOSTE: when your block stops his whole attack, your next hand gets +2 mult. "
+            .. "Gift: +1 reroll every turn.", riposte = 2, rerolls = 1},
+    gladiator = {name = "Gladiator", title = "The crowd's darling", color = {0.95, 0.40, 0.30}, ability = "crowd",
+        perk = "PLAY TO THE CROWD: once a duel, this hand's mult is doubled. +8 gold after every win.", winGold = 8},
+    monsterhunter = {name = "Monster Hunter", title = "Knows every beast", color = {0.50, 0.75, 0.40}, ability = "bait",
+        perk = "BAIT THE TRAP: once a duel, his next signature move is cancelled and he loses that turn, "
+            .. "dizzy. +25% attack against elites and bosses.", bigGame = 0.25},
+    swashbuckler = {name = "Swashbuckler", title = "All panache", color = {0.95, 0.75, 0.35}, ability = "flourish",
+        perk = "FLOURISH: once a duel, +4 rerolls this turn, and +1 mult for every reroll you use this turn."},
+    -- the Mage's
+    artificer = {name = "Artificer", title = "Tinkers with power", color = {0.85, 0.65, 0.35},
+        perk = "Carry 1 more relic. Gift: choose 1 of 3 relics (swap one out if your pockets are full).",
+        charmSlots = 1, giftRelic = true},
+    alchemist = {name = "Alchemist", title = "Turns lead to luck", color = {0.55, 0.90, 0.55}, ability = "transmute",
+        perk = "TRANSMUTE: once a duel, your mixed dice turn wild this turn. They keep their Strike or Guard."},
+    artillerist = {name = "Artillerist", title = "Brought a cannon", color = {0.90, 0.45, 0.25}, ability = "barrage",
+        perk = "BARRAGE: once a duel, deal 6 damage through his guard for every relic you carry."},
+    relicsmith = {name = "Relicsmith", title = "Forges wonders", color = {0.95, 0.80, 0.40}, ability = "masterwork",
+        perk = "MASTERWORK: once a duel, every relic with a condition fires this hand as if it were met. "
+            .. "Gift: choose 1 of 3 relics.", giftRelic = true},
+    warlock = {name = "Warlock", title = "Struck a bargain", color = {0.65, 0.35, 0.85},
+        perk = "ELDRITCH BLAST: every hand also deals 2 damage through his guard for every point of mult.",
+        eldritch = 2},
+    necromancer = {name = "Necromancer", title = "Nothing stays dead", color = {0.55, 0.75, 0.55}, ability = "raise",
+        perk = "RAISE DEAD: once a duel, a bone die (Strikes 2, 2, 3, 3, 4, 4) joins your dice for the rest "
+            .. "of the duel."},
+    witch = {name = "Witch", title = "Brews and curses", color = {0.60, 0.80, 0.35}, ability = "wickedhex",
+        perk = "WICKED HEX: once a duel, his best red face and best blue face become blanks for the rest "
+            .. "of the duel."},
+    hexblade = {name = "Hexblade", title = "A sword with a grudge", color = {0.55, 0.25, 0.70}, ability = "curse",
+        perk = "HEXBLADE'S CURSE: once a duel, he takes 50% more damage from everything for the rest of "
+            .. "the duel."},
+    wizard = {name = "Wizard", title = "Studied every spell", color = {0.45, 0.55, 1.00},
+        perk = "SPELL MASTERY: every hand gets another +1 mult. Gift: 2 face upgrades.", mult = 1, giftUpgrades = 2},
+    elementalist = {name = "Elementalist", title = "Fire, frost and storm", color = {0.95, 0.55, 0.30},
+        ability = "storm",
+        perk = "ELEMENTAL STORM: once a duel, this hand deals x2 attack, adds 8 poison, and his attack "
+            .. "this turn is halved."},
+    abjurer = {name = "Abjurer", title = "Nothing gets through", color = {0.55, 0.80, 1.00}, ability = "ward",
+        perk = "ABSOLUTE WARD: once a duel, his attack this turn is cancelled, and you gain that much "
+            .. "block next turn."},
+    battlemage = {name = "Battlemage", title = "Spell and sword", color = {0.70, 0.45, 0.95}, ability = "arcaneweapon",
+        perk = "ARCANE WEAPON: once a duel, for the rest of the duel every Strike face showing gives +1 mult."},
+    -- the Rogue's
+    thief = {name = "Thief", title = "What's yours is mine", color = {0.70, 0.60, 0.45},
+        perk = "LIGHT FINGERS: +5 gold every hand that hurts him. Every shop has one relic you can steal.",
+        hitGold = 5, steal = true},
+    infiltrator = {name = "Infiltrator", title = "Already behind you", color = {0.40, 0.45, 0.60}, ability = "vanish",
+        perk = "VANISH: once a duel, his attack this turn misses you, and your next hand deals x2 attack."},
+    assassin = {name = "Assassin", title = "One clean cut", color = {0.80, 0.20, 0.25}, ability = "assassinate",
+        perk = "ASSASSINATE: once a duel, if he's under 25% nerve he dies. Otherwise this hand deals x1.5 "
+            .. "attack. Your first hand of every duel deals x3 attack.", firstStrike = 1.7},
+    tombraider = {name = "Tomb Raider", title = "Fortune and glory", color = {0.90, 0.70, 0.30},
+        perk = "TREASURE HUNTER: +10 gold after every win, and every elite you beat offers 1 of 3 relics.",
+        winGold = 10, treasure = true},
+    trailblazer = {name = "Trailblazer", title = "Knows the way", color = {0.45, 0.75, 0.45},
+        perk = "PATHFINDER: you can see what mystery stops hold, and recover 6 nerve every time you move "
+            .. "to a new stop. Gift: +10 max nerve.", reveal = true, stepHeal = 6, hp = 10},
+    trophyhunter = {name = "Trophy Hunter", title = "Every kill counts", color = {0.85, 0.55, 0.30},
+        perk = "TROPHIES: +2 attack for every elite and boss you've beaten this run.", trophy = 2},
+    wayfinder = {name = "Wayfinder", title = "Follows the stars", color = {0.55, 0.70, 1.00}, ability = "guide",
+        perk = "GUIDING STAR: once a duel, turn one of your dice to any face you choose."},
+    beastmaster = {name = "Beastmaster", title = "Never hunts alone", color = {0.60, 0.50, 0.35}, ability = "sic",
+        perk = "A wolf bites him every turn for 3 per act through his guard and adds 1 bleed. "
+            .. "SIC 'EM: once a duel, the bite is x4.", wolf = 3},
+    charlatan = {name = "Charlatan", title = "Never plays fair", color = {0.85, 0.50, 0.75},
+        perk = "CROOKED DICE: your rerolls never land on a blank or a 1.", crooked = true},
+    imposter = {name = "Imposter", title = "Wears your face", color = {0.70, 0.40, 0.80}, ability = "turnabout",
+        perk = "TURNABOUT: once a duel, his attack this turn hits him instead of you."},
+    gambler = {name = "Gambler", title = "Bets it all", color = {0.95, 0.80, 0.30}, ability = "doubleornothing",
+        perk = "DOUBLE OR NOTHING: once a duel, flip a coin: this hand deals x3 attack, or x0.5. "
+            .. "Rivals' purses pay 50% more.", winGoldPct = 0.5},
+    mastermind = {name = "Mastermind", title = "Ten moves ahead", color = {0.40, 0.70, 0.80}, ability = "longcon",
+        perk = "THE LONG CON: gain 1 scheme every turn. Once a duel, spend it all for +1 mult each."},
+}
+-- what each class, and each first prestige, can become
+data.PRESTIGE_TREE = {
+    warrior = {"knight", "barbarian", "duelist"},
+    mage = {"artificer", "warlock", "wizard"},
+    rogue = {"thief", "trailblazer", "charlatan"},
+    knight = {"templar", "runeknight", "cavalier"},
+    barbarian = {"juggernaut", "warlord", "reaver"},
+    duelist = {"gladiator", "monsterhunter", "swashbuckler"},
+    artificer = {"alchemist", "artillerist", "relicsmith"},
+    warlock = {"necromancer", "witch", "hexblade"},
+    wizard = {"elementalist", "abjurer", "battlemage"},
+    thief = {"infiltrator", "assassin", "tombraider"},
+    trailblazer = {"trophyhunter", "wayfinder", "beastmaster"},
+    charlatan = {"imposter", "gambler", "mastermind"},
+}
+
+-- How many relics this run can carry: the Artificer makes room for more
+function data.maxCharms(run) return data.MAX_CHARMS + data.trait(run, "charmSlots") end
+
+-- The once-per-duel power this run's prestige grants, or nil
+function data.ability(run)
+    for _, id in ipairs(run.prestige or {}) do
+        if data.PRESTIGES[id].ability then return data.PRESTIGES[id].ability end
+    end
+end
+
+-- The sum of a passive across the run's race, class, weapon, background and prestiges
 function data.trait(run, key)
+    local p = run.prestige or {}
     local defs = {data.RACES[run.race or ""], data.CLASSES[run.class or ""], data.WEAPONS[run.weapon or ""],
-        data.BACKSTORIES[run.backstory or ""]}
+        data.BACKSTORIES[run.backstory or ""], data.PRESTIGES[p[1] or ""], data.PRESTIGES[p[2] or ""]}
     local total = 0
-    for i = 1, 4 do   -- not ipairs: any of them may be missing
+    for i = 1, 6 do   -- not ipairs: any of them may be missing
         local def = defs[i]
         if def and def[key] then total = total + (def[key] == true and 1 or def[key]) end
     end

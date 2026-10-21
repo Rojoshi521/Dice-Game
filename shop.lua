@@ -23,13 +23,16 @@ local function overCard(i, x, y)
     return math.abs(x - cx) < 40 and math.abs(y - cy) < 50
 end
 
+-- the Thief's pick of the stock costs nothing
+local function price(item) return item.free and 0 or data.charmPrice(item.id, run) end
+
 local function canBuy(item)
-    return not item.sold and run.gold >= data.charmPrice(item.id, run) and #run.charms < data.MAX_CHARMS
+    return not item.sold and run.gold >= price(item) and #run.charms < data.maxCharms(run)
 end
 
 local function buy(i)
     local item = stock[i]
-    run.gold = run.gold - data.charmPrice(item.id, run)
+    run.gold = run.gold - price(item)
     run.addCharm(item.id)
     item.sold = true
     local cx, cy = cardPos(i)
@@ -69,6 +72,7 @@ function shop.enter()
     for i = 1, math.min(bazaar and 5 or 3, #pool) do
         stock[i] = {id = table.remove(pool, math.random(#pool)), sold = false}
     end
+    if data.trait(run, "steal") > 0 and #stock > 0 then stock[math.random(#stock)].free = true end
     buttons = {
         drink = {x = FIELD_X - 70, y = 256, w = 140, h = 28, color = PAL.green,
             label = "DRINK +" .. data.DRINK_HEAL .. "  " .. drinkCost() .. "g"},
@@ -101,7 +105,7 @@ function shop.draw()
     ui.tip = nil
     ui.sidebar(bazaar and "THE BAZAAR" or "THE PEDDLER", "Relics & spirits", {0.12, 0.38, 0.38})
     ui.gold(80)
-    gfx.print("Relics bend the rules\nof the table. You can\ncarry " .. data.MAX_CHARMS .. ".", ui.SB.x + ui.SB.w / 2,
+    gfx.print("Relics bend the rules\nof the table. You can\ncarry " .. data.maxCharms(run) .. ".", ui.SB.x + ui.SB.w / 2,
         130, "small", PAL.grey, "center", ui.SB.w)
     gfx.button(buttons.go, scene.mx, scene.my)
 
@@ -120,12 +124,12 @@ function shop.draw()
             local _, nameLines = gfx.font.small:getWrap(c.name, tw)
             gfx.print(c.name, cx, cy + 18, "small", PAL.cream, "center", tw)
             gfx.print(c.desc, cx, cy + 20 + #nameLines * gfx.font.small:getHeight(), "small", PAL.grey, "center", tw)
-            gfx.print(data.charmPrice(item.id, run) .. "g", cx, cy - 62, "med", canBuy(item) and PAL.gold or PAL.red, "center", 60)
+            gfx.print(item.free and "STEAL" or (price(item) .. "g"), cx, cy - 62, "med", canBuy(item) and PAL.gold or PAL.red, "center", 60)
         end
         if hot then ui.tipCharm(item.id) end
     end
     gfx.button(buttons.drink, scene.mx, scene.my)
-    if #run.charms >= data.MAX_CHARMS then
+    if #run.charms >= data.maxCharms(run) then
         gfx.print("Your pockets are full.", FIELD_X, 292, "small", PAL.red, "center", 200)
     end
     ui.charmRow(176, 26)

@@ -149,6 +149,8 @@ function run.new(mode)
     run.row, run.col, run.path = 0, nil, {}
     run.rival = "pip"
     run.race, run.class, run.backstory, run.weapon = nil, nil, nil, nil
+    run.prestige = {}        -- the prestige classes earned by beating the acts' bosses, in order
+    run.trophies = 0         -- elites and bosses beaten (the Trophy Hunter counts them)
 end
 
 -- Takes a relic; some change the run the moment you pick them up

@@ -135,7 +135,7 @@ end
 
 local function wish()
     local roll, pool = math.random(), relicPool()
-    if roll < 0.3 and #pool > 0 and #run.charms < data.MAX_CHARMS then
+    if roll < 0.3 and #pool > 0 and #run.charms < data.maxCharms(run) then
         local rid = pool[math.random(#pool)]
         run.addCharm(rid)
         return finish("Thistle giggles and drops a trinket in your hand: " .. data.CHARMS[rid].name .. "!")
@@ -173,7 +173,7 @@ local SERVICES = {
             {label = function() return stock and ("BUY " .. data.CHARMS[stock].name:upper() .. "  " .. math.ceil(
                 data.charmPrice(stock, run) / 2) .. "g") or "SOLD OUT" end,
                 enabled = function() return stock and run.gold >= math.ceil(data.charmPrice(stock, run) / 2)
-                    and #run.charms < data.MAX_CHARMS end,
+                    and #run.charms < data.maxCharms(run) end,
                 act = function()
                     run.gold = run.gold - math.ceil(data.charmPrice(stock, run) / 2)
                     run.addCharm(stock)

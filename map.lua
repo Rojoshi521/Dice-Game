@@ -80,6 +80,8 @@ local function enter(r, i)
     run.path = run.path or {}
     run.path[r] = i
     sfx.play("click", 1.1)
+    -- the Trailblazer gets their wind back on every new stretch of road
+    run.hp = math.min(run.maxHp, run.hp + data.trait(run, "stepHeal"))
     local function go()
         if node.rival then
             run.rival = node.rival
@@ -155,7 +157,7 @@ local NODE_HELP = {
 local function nodeHelp(node)
     if node.rival then return data.RIVALS[node.rival].title .. (node.kind == "elite" and " (two trick dice)"
         or node.kind == "boss" and " (three trick dice)" or "") end
-    if node.secret and run.scout then return "The scout says: " .. secretText(node.secret) end
+    if node.secret and (run.scout or data.trait(run, "reveal") > 0) then return "The scout says: " .. secretText(node.secret) end
     return NODE_HELP[node.kind]
 end
 

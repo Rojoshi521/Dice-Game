@@ -38,6 +38,7 @@ local function drawKit(x, y, w)
     y = entry("CLASS", run.class and data.CLASSES[run.class], x, y, w)
     y = entry("BACKGROUND", run.backstory and data.BACKSTORIES[run.backstory], x, y, w)
     if run.mode == "campaign" then y = entry("WEAPON", run.weapon and data.WEAPONS[run.weapon], x, y, w) end
+    for k, id in ipairs(run.prestige or {}) do y = entry(k == 1 and "PRESTIGE" or "PRESTIGE II", data.PRESTIGES[id], x, y, w) end
     gfx.print("NERVE " .. run.hp .. "/" .. run.maxHp .. "   GOLD " .. run.gold, x, y, "small", PAL.cream)
 end
 

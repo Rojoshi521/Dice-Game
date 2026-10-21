@@ -123,6 +123,8 @@ function love.load(args)
         if a == "--seed" then SEED = tonumber(args[i + 1]) end   -- repeatable test runs
         if a == "--speed" then AUTO_SPEED = tonumber(args[i + 1]) end   -- autoplay speed (default 5)
         if a == "--noshots" then NOSHOTS = true end   -- autoplay without its screenshots, for big batches
+        if a == "--prestige" then PRESTIGE = args[i + 1] end   -- test runs: prestige classes held, e.g. barbarian,reaver
+        if a == "--pickprestige" then PRESTIGE_PICK = args[i + 1] end   -- the prestige autoplay picks when offered
     end
     -- runs launched in the same second can share a table address, so test runs also mix in their save name
     local salt = 0
@@ -171,6 +173,10 @@ function love.load(args)
             data.applyWeapon(WEAPON, run.dice, run)
         end
         if backstory and backstory ~= "none" then data.applyBackstory(backstory, run) end
+        for id in (PRESTIGE or ""):gmatch("%a+") do
+            run.prestige[#run.prestige + 1] = id
+            data.applyPick(data.PRESTIGES[id], run)
+        end
         for _ = 1, data.trait(run, "relics") do
             local pool = {}
             for _, id in ipairs(data.CHARM_ORDER) do
