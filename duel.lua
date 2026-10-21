@@ -10,6 +10,7 @@ local sfx = require("sfx")
 local scene = require("scene")
 local portraits = require("portraits")
 local art = require("art")
+local voice = require("voice")
 
 local lg = love.graphics
 local PAL, KINDS = gfx.PAL, data.KINDS
@@ -68,6 +69,8 @@ local ability, abilityUsed, now, targeting
 local rage, riposteNext, jugg, warBanner, arcane, scheme   -- prestige states that last the duel
 local flourishBase, vanishTurn = 0, nil
 local lastEv                            -- the hand you last played, explained, for hovering its numbers
+local hero                              -- your hero's hit reactions (knockback, tilt, squash, red, shimmer)
+local heroSay, spoke                    -- your hero's speech bubble, and which voice events came up this duel
 local BLANK = {kind = "blank", value = 0}
 
 -- Inside each fighter's stat block: the name, then the nerve bar, then (his) dice, then the hand's numbers
@@ -628,8 +631,22 @@ end
 local function isSig() return turn > 0 and turn % rival.def.every == 0 end
 local function isTell() return turn % rival.def.every == rival.def.every - 1 end
 
-local function say(text)
-    bubble = {text = text, t = 0, life = 2.2 + #text * 0.03}
+-- The rival speaks. A minor line (a grunt when hit) waits its turn while your hero is talking; anything
+-- else talks over them.
+local function say(text, minor)
+    if minor and heroSay then return end
+    bubble, heroSay = {text = text, t = 0, life = 2.2 + #text * 0.03}, nil
+end
+
+-- Your hero says something for event (see voice.lua): always the first time it comes up in a duel, then
+-- only chance of the time
+local function speak(event, chance)
+    if spoke[event] and math.random() >= (chance or 1) then return end
+    local line = voice.line(run, event, run.rival, rival.def)
+    if not line then return end
+    spoke[event] = true
+    heroSay, bubble = {text = line, t = 0, life = 2.4 + #line * 0.035}, nil
+    if AUTO_TEST then print("AUTO: says (" .. event .. ") " .. line) end
 end
 
 local function setMood(mood, dur)
@@ -649,6 +666,29 @@ local function pierces()
     return run.hasCharm("axe") or (loc and loc.pierce) or data.trait(run, "pierce") > 0
 end
 
+-- A fighter (rival, or hero for you) reels from a blow at x, y: knocked back away from the attacker,
+-- squashed, tilted and flushed red, harder the bigger the hit is next to their nerve, with a spray of red
+-- and a hit-stop for heavy blows. A blow their guard swallows whole only shimmers blue and throws sparks.
+local HURT_RED = {1, 0.22, 0.18}
+local SPARK = {0.65, 0.85, 1}
+local function react(f, dmg, absorbed, maxHp, x, y)
+    if dmg <= 0 then
+        if absorbed <= 0 then return end
+        f.shim, f.kb = 1, 4
+        fx.tween(f, 0.6, {shim = 0, kb = 0}, "out")
+        fx.burst(x, y, 12, SPARK, 120)
+        return
+    end
+    local s = math.min(1, 0.3 + dmg / (maxHp * 0.12))
+    f.kb, f.tilt, f.squash, f.red = 24 * s, 0.15 * s, s, 1
+    fx.tween(f, 0.6, {kb = 0, tilt = 0}, "elastic")
+    fx.tween(f, 0.28, {squash = 0}, "out")
+    fx.tween(f, 0.45, {red = 0}, "linear")
+    fx.burst(x, y, math.floor(8 + 24 * s), {0.85, 0.12, 0.10}, 100 + 90 * s)
+    if absorbed > 0 then fx.burst(x, y, 8, SPARK, 100) end
+    if s > 0.55 then fx.hitStop(0.03 + 0.07 * s) end
+end
+
 local function damageRival(n, pierce)
     if rival.cursed then n = math.floor(n * 1.5) end   -- the Hexblade's curse
     local absorbed = pierce and 0 or math.min(rival.block, n)
@@ -658,18 +698,18 @@ local function damageRival(n, pierce)
     rival.parried, rival.took = rival.parried + absorbed, rival.took + dmg
     fx.slash(RIVAL_X, PORTRAIT_Y)
     if absorbed > 0 then fx.text("-" .. absorbed, RIVAL_HP.x + RIVAL_HP.w + 14, RIVAL_HP.y - 8, PAL.blue, "med") end
+    react(rival, dmg, absorbed, rival.maxHp, RIVAL_X, PORTRAIT_Y)
     if dmg > 0 then
-        rival.flash, rival.shake = 1, 1
-        fx.tween(rival, 0.5, {shake = 0})
+        rival.shake = 0.5
+        fx.tween(rival, 0.4, {shake = 0})
         setMood("hit", 0.6)
         fx.text(dmg, RIVAL_X + math.random(-10, 10), PORTRAIT_Y - 20, PAL.red, dmg >= 15 and "huge" or "big",
             {shake = true, life = 1.1})
         fx.addShake(math.min(0.7, 0.2 + dmg * 0.02))
-        fx.burst(RIVAL_X, PORTRAIT_Y, math.min(40, 8 + dmg), {1, 0.85, 0.55}, 140)
         sfx.play("hit", 1.15 - math.min(0.4, dmg * 0.01))
         if rival.hp > 0 and math.random() < 0.4 then
             local lines = rival.def.hitLines
-            say(lines[math.random(#lines)])
+            say(lines[math.random(#lines)], true)
         end
     else
         sfx.play("block")
@@ -690,6 +730,7 @@ local function hurtPlayer(n, pierce)
     block = block - absorbed
     run.hp = math.max(0, run.hp - dmg)
     if absorbed > 0 then fx.text("-" .. absorbed, BLOCK_POS.x, BLOCK_POS.y - 10, PAL.blue, "med") end
+    react(hero, dmg, absorbed, run.maxHp, layout.me.x, layout.me.feet - layout.me.h * 0.55)
     if dmg > 0 then
         hpShake = 1
         fx.text("-" .. dmg, HP_POS.x, HP_POS.y, PAL.red, "big", {shake = true})
@@ -980,6 +1021,9 @@ local function rivalAct()
                     riposteNext = true
                     fx.text("RIPOSTE!", BLOCK_POS.x + 40, BLOCK_POS.y - 24, PAL.gold, "med")
                 end
+                -- your hero has words for a blow that never landed, and for nerve running out
+                if dmg == 0 then speak("wall", 0.6)
+                elseif run.hp > 0 and run.hp <= run.maxHp * 0.25 then speak("low", 0) end
                 if jugg > 0 then jugg = jugg - 1 end
                 if dmg > 0 and trick("drain") and not rival.dead then
                     local before = rival.hp
@@ -1095,6 +1139,7 @@ local function resolve()
     for _, d in ipairs(mine) do d.held = false end
     local ev = evaluate(true)
     lastEv = ev
+    if ({full = true, quad = true, grand = true, fate = true})[ev.pat.id] then speak("big", 0.4) end
     local s = {label = ev.pat.name, atk = 0, def = 0, mult = ev.pat.mult, atkPop = 0, defPop = 0, multPop = 0}
     -- test runs: tally the modifier faces played, and flag any hand whose numbers came out impossible
     if AUTO_TEST then
@@ -1293,6 +1338,7 @@ local function resolve()
             fx.addShake(0.6)
             sfx.play("mult", 0.5)
             say("Wha-- whoa...!")
+            speak("stagger", 0.7)
         end
         streak = ev.pat.id ~= "high" and streak + 1 or 0
     end)
@@ -1667,6 +1713,7 @@ local function useAbility()
     abilityUsed, targeting = true, nil
     local a = ability
     if AUTO_TEST then print(string.format("AUTO: ability %s on turn %d, rival %d/%d", a, turn, rival.hp, rival.maxHp)) end
+    speak("power")
     fx.text(ABILITY_LABELS[a] .. "!", DICE_X, TRAY_Y - 46, abilityDef().color, "big", {shake = true, life = 1.2})
     fx.flashScreen(1, 0.85, 0.5, 0.2)
     fx.addShake(0.3)
@@ -1767,6 +1814,8 @@ local function begin()
     if phase ~= "intro" then return end
     sfx.play("click")
     rivalRoll()
+    -- your hero sizes him up: always when they have something to say to this rival in particular
+    if voice.hasVs(run, run.rival) or math.random() < 0.75 then speak("intro") end
 end
 
 function duel.mousepressed(x, y)
@@ -1967,6 +2016,8 @@ local function resetDuelState()
     ability, abilityUsed, now, targeting = data.ability(run), false, {}, nil
     rage, riposteNext, jugg, warBanner, arcane, scheme = 0, false, 0, 0, false, 0
     flourishBase, vanishTurn, lastEv = 0, nil, nil
+    hero = {kb = 0, tilt = 0, squash = 0, red = 0, shim = 0}
+    heroSay, spoke = nil, {}
 end
 
 -- Your dice in the tray and his in his panel, and the buttons
@@ -2028,7 +2079,8 @@ function duel.enter()
             * (loc and loc.stagger or 1)),
         block = 0, str = 0, patience = 0,
         carry = 0, took = 0, parried = 0, warcry = 0, bones = 0, lastTrick = nil, flicked = false, poison = 0, bleed = 0,
-        flash = 0, shake = 0, punch = 0, drop = 0, sc = 0, mood = nil, moodT = 0}
+        flash = 0, shake = 0, punch = 0, drop = 0, sc = 0, mood = nil, moodT = 0,
+        kb = 0, tilt = 0, squash = 0, red = 0, shim = 0}
     fx.tween(rival, 0.6, {sc = 1}, "back")
     setTable(def)
     phase = "intro"
@@ -2068,6 +2120,10 @@ function duel.update(dt)
     if bubble then
         bubble.t = bubble.t + dt
         if bubble.t > bubble.life then bubble = nil end
+    end
+    if heroSay then
+        heroSay.t = heroSay.t + dt
+        if heroSay.t > heroSay.life then heroSay = nil end
     end
     if banner then banner.t = banner.t + dt end
 end
@@ -2160,13 +2216,35 @@ local function heroName()
     return (race .. " " .. title):upper()
 end
 
+-- Leans a fighter's drawing into their hit reaction f (see react): knocked back the way dir points (1:
+-- right), tilted back about their feet, squashed; the caller has already moved to their feet
+local function reel(f, dir)
+    lg.translate(f.kb * dir, 0)
+    lg.rotate(f.tilt * dir)
+    lg.scale(1 + f.squash * 0.14, 1 - f.squash * 0.14)
+end
+
+-- A painted fighter mid-reaction: flushed red after a hit, shimmering blue after a blow their guard ate
+local function drawReacting(id, f, h, glow, flash)
+    if f.shim > 0 then
+        art.draw(id, 0, 0, h, {0.45, 0.75, 1, f.shim}, f.shim * 0.35, SPARK)
+    elseif f.red > 0 then
+        art.draw(id, 0, 0, h, glow, f.red * 0.75, HURT_RED)
+    else
+        art.draw(id, 0, 0, h, glow, flash)
+    end
+end
+
 -- You on the left, him on the right, standing in the location's painting
 local function drawFighters()
     local L = layout
     local look = heroLook()
     if look then
-        local sh = (math.random() - 0.5) * 6 * hpShake
-        art.draw(look, L.me.x + sh, L.me.feet + math.floor(math.sin(time * 1.8) + 0.5), L.me.h, nil, hpShake * 0.6)
+        lg.push()
+        lg.translate(L.me.x, L.me.feet + math.floor(math.sin(time * 1.8) + 0.5))
+        reel(hero, -1)
+        drawReacting(look, hero, L.me.h)
+        lg.pop()
     end
     local wave = math.sin(time * 2.2)
     local mood = rival.mood or baseMood()
@@ -2176,16 +2254,18 @@ local function drawFighters()
         local s = rival.sc * (1 + rival.punch * 0.12)
         local glow = (mood == "tell" or mood == "sig") and {1, 0.35, 0.25, 0.5 + 0.3 * math.sin(time * 8)} or nil
         lg.push()
-        -- he lunges at you when he attacks, and sinks when he's beaten
+        -- he lunges at you when he attacks, reels when hit, and sinks when he's beaten
         lg.translate(RIVAL_X + shake - rival.punch * 30, L.foe.feet + rival.drop * 50 - hop + math.floor(wave + 0.5))
+        reel(rival, 1)
         lg.scale(s)
-        art.draw(run.rival, 0, 0, L.foe.h, glow, rival.flash)
+        drawReacting(run.rival, rival, L.foe.h, glow, rival.flash)
         lg.pop()
         return
     end
     local s = PORTRAIT_SCALE * (L.foe.h / 190) * rival.sc * (1 + rival.punch * 0.35)
     lg.push()
     lg.translate(RIVAL_X + shake, PORTRAIT_Y + wave * 1.5 + rival.drop * 50 - hop)
+    reel(rival, 1)
     lg.scale(s * (1 + wave * 0.01), s * (1 - wave * 0.01))
     portraits.draw(run.rival, mood, time, rival.flash)
     lg.pop()
@@ -2483,6 +2563,10 @@ function duel.draw()
     end
     drawAbility()
     if bubble and phase ~= "intro" then rivalBubble(bubble.text, bubble.t) end
+    if heroSay and phase ~= "intro" then   -- beside your hero's head, pointing back at them
+        local L = layout
+        ui.bubble(heroSay.text, L.me.x + L.me.h * 0.2, math.max(8, L.me.feet - L.me.h + 4), 150, heroSay.t)
+    end
 
     if phase == "intro" then
         drawIntro()

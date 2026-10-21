@@ -179,8 +179,8 @@ end
 function art.has(id) return love.filesystem.getInfo("art/" .. id .. ".png") ~= nil end
 
 -- Draw a character standing with feet at (x, y), height stage pixels tall.
--- glow: {r, g, b, a} outline, flash: 0..1 white-out
-function art.draw(id, x, y, height, glow, flash)
+-- glow: {r, g, b, a} outline, flash: 0..1 wash of flashColor (white unless given)
+function art.draw(id, x, y, height, glow, flash, flashColor)
     local s = get(id, height)
     if not s then return end
     silShader = silShader or lg.newShader(SIL_SHADER)
@@ -201,7 +201,8 @@ function art.draw(id, x, y, height, glow, flash)
     lg.setBlendMode("alpha")
     if flash and flash > 0 then
         lg.setShader(silShader)
-        lg.setColor(1, 1, 1, flash)
+        local c = flashColor or {1, 1, 1}
+        lg.setColor(c[1], c[2], c[3], flash)
         lg.draw(s.img, x, y, 0, k, k, ox, oy)
         lg.setShader()
     end

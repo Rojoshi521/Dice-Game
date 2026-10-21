@@ -8,6 +8,7 @@ local fx = {}
 local tweens, chain, timers, texts, parts, slashes = {}, {}, {}, {}, {}, {}
 local chainWait, trauma = 0, 0
 local flash = {0, 0, 0, 0}
+local stop = 0   -- hit-stop: seconds the game holds still
 
 fx.EASE = {
     linear = function(t) return t end,
@@ -25,8 +26,18 @@ fx.EASE = {
 
 function fx.reset()
     tweens, chain, timers, texts, parts, slashes = {}, {}, {}, {}, {}, {}
-    chainWait, trauma = 0, 0
+    chainWait, trauma, stop = 0, 0, 0
     flash[4] = 0
+end
+
+-- Hit-stop: everything holds still for a moment so a heavy blow lands
+function fx.hitStop(dur) stop = math.max(stop, dur) end
+
+-- Spends dt against a hit-stop; true while the game should hold still
+function fx.holding(dt)
+    if stop <= 0 then return false end
+    stop = stop - dt
+    return true
 end
 
 ---------------------------------------------------------------------------

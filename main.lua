@@ -249,6 +249,7 @@ function love.update(dt)
     end
     scene.mx, scene.my = toCanvas(love.mouse.getPosition())
     if MOUSE then scene.mx, scene.my = MOUSE[1], MOUSE[2] end
+    if fx.holding(dt) then return end   -- a heavy hit's hit-stop
     fx.update(dt)
     scene.current.update(dt)
     local target = scene.bg or gfx.BG.tavern
