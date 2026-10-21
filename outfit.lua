@@ -15,7 +15,6 @@ local PAL = gfx.PAL
 
 local FIELD_X = 394
 local CARD_TOP, CARD_H, CARD_W, CARD_GAP = 84, 236, 138, 152      -- the three big cards
-local RACE_TOP, RACE_W, RACE_H, RACE_GAP = 66, 88, 128, 94        -- the race grid: five on top, four below
 local BG_TOP, BG_W, BG_H, BG_GAP = 84, 88, 196, 94                -- the background cards, in one row
 local RELIC_Y = 140
 local FACE, ROW_Y, ROW_GAP = 30, 164, 38
@@ -23,7 +22,7 @@ local DRAFT_Y, DRAFT_GAP, SLOT_Y = 124, 124, 300
 
 local outfit = {}
 local step, chosenT, cardAnims, relics, relicsLeft, upgradesLeft, anims, buttons, time
-local drafted, draftOffers, rack, backgrounds
+local drafted, draftOffers, rack, backgrounds, races
 -- step: "race", "class", "weapon", "backstory", "relic", "draft", "upgrade", "done"
 
 local campaign = require("campaign")
@@ -32,7 +31,7 @@ local function cardStep() return step == "race" or step == "class" or step == "w
 
 -- The cards on offer this step, and the table their ids look up in
 local function cardOrder()
-    if step == "race" then return data.RACE_ORDER, data.RACES end
+    if step == "race" then return races, data.RACES end
     if step == "class" then return data.CLASS_ORDER, data.CLASSES end
     if step == "weapon" then return rack, data.WEAPONS end
     return backgrounds, data.BACKSTORIES
@@ -40,11 +39,6 @@ end
 
 -- Card i's centre x, top, width and height
 local function cardBox(i)
-    if step == "race" then
-        local row = i <= 5 and 0 or 1
-        local n, k = row == 0 and 5 or 4, row == 0 and i or i - 5
-        return FIELD_X + (k - (n + 1) / 2) * RACE_GAP, RACE_TOP + row * (RACE_H + 8), RACE_W, RACE_H
-    end
     if step == "backstory" then
         return FIELD_X + (i - (#backgrounds + 1) / 2) * BG_GAP, BG_TOP, BG_W, BG_H
     end
@@ -97,7 +91,7 @@ local function newCards()
     cardAnims = {}
     for i = 1, #cardOrder() do
         cardAnims[i] = {sc = 0, lift = 0}
-        fx.tween(cardAnims[i], 0.35 + i * (step == "race" and 0.05 or 0.12), {sc = 1}, "back")
+        fx.tween(cardAnims[i], 0.35 + i * 0.12, {sc = 1}, "back")
     end
 end
 
@@ -125,6 +119,13 @@ local function dealBackgrounds()
     local pool = {unpack(data.BACKSTORY_ORDER)}
     backgrounds = {}
     for i = 1, math.min(data.BACKGROUND_OFFERS, #pool) do backgrounds[i] = table.remove(pool, math.random(#pool)) end
+end
+
+-- Three races to choose from, different every run
+local function dealRaces()
+    local pool = {unpack(data.RACE_ORDER)}
+    races = {}
+    for i = 1, math.min(3, #pool) do races[i] = table.remove(pool, math.random(#pool)) end
 end
 
 local function startRelics()
@@ -171,6 +172,7 @@ local function goTo(s)
         for i = 1, math.min(data.WEAPON_OFFERS, #pool) do rack[i] = table.remove(pool, math.random(#pool)) end
         if WEAPON then rack = WEAPON == "none" and {} or {WEAPON} end   -- test runs: --weapon
     end
+    if s == "race" then dealRaces() end
     if s == "backstory" then dealBackgrounds() end
     if s == "race" or s == "class" or s == "weapon" or s == "backstory" then
         step = s
@@ -201,7 +203,7 @@ end
 
 local function pickRace(i)
     if chosenT then return end
-    run.race = data.RACE_ORDER[i]
+    run.race = races[i]
     data.applyPick(data.RACES[run.race], run)
     pickCard(i, data.RACES[run.race].color)
     fx.timer(0.9, function() goTo("class") end)
@@ -397,10 +399,14 @@ local function glowFor(c, mood)
     return mood ~= "idle" and {c[1], c[2], c[3], 0.6 + 0.3 * math.sin(time * 6)} or nil
 end
 
--- The art in a big card's top box: a weapon, or your race dressed for a class
+-- The art in a big card's top box: a race in commoner's clothes, a weapon, or your race dressed for a class
 local function drawArt(id, cx, top, mood)
     local lift = mood == "idle" and 0 or 2
-    if step == "weapon" then
+    if step == "race" then
+        local look = id .. "_common"
+        local flash = mood == "smug" and chosenT and math.max(0, 0.8 - chosenT * 2.5) or 0
+        art.draw(art.has(look) and look or id, cx, top + 123 - lift, nil, glowFor(data.RACES[id].color, mood), flash)
+    elseif step == "weapon" then
         local w = data.WEAPONS[id]
         local bob = mood == "idle" and 0 or math.sin(time * 4) * 2
         art.draw("wpn_" .. id, cx, top + 6 + (118 + w.artH) / 2 + bob, w.artH, glowFor(w.color, mood), 0)
@@ -443,28 +449,6 @@ local function dimUnpicked(x, top, w, h, picked)
     end
 end
 
--- A compact portrait card in the race grid
-local function drawRaceCard(i)
-    local id = data.RACE_ORDER[i]
-    local r = data.RACES[id]
-    if cardAnims[i].sc < 0.01 then return end
-    local picked, hot, mood = cardState(i, id)
-    local cx, top, w, h = beginCard(i)
-    local x = cx - w / 2
-    cardGlow(x, top, w, h, r.color, hot or picked)
-    gfx.panel(x, top, w, h, PAL.dark, 6)
-    gfx.panel(x + 4, top + 4, w - 8, h - 30, {r.color[1] * 0.25, r.color[2] * 0.25, r.color[3] * 0.25}, 5)
-    gfx.scissor(x + 4, top + 4, w - 8, h - 30)
-    local flash = mood == "smug" and chosenT and math.max(0, 0.8 - chosenT * 2.5) or 0
-    art.draw(id, cx, top + h - 27 - (mood == "idle" and 0 or 2), h - 34, glowFor(r.color, mood), flash)
-    gfx.scissor()
-    local name = r.name:upper()
-    gfx.fancy(name, cx, top + h - 14, "med", r.color, math.min(1, (w - 8) / gfx.font.med:getWidth(name)),
-        hot and math.sin(time * 3) * 0.04 or 0, 1, time)
-    dimUnpicked(x, top, w, h, picked)
-    lg.pop()
-end
-
 -- A background card: its painting, name and passive
 local function drawBackgroundCard(i)
     local id = backgrounds[i]
@@ -486,7 +470,7 @@ local function drawBackgroundCard(i)
     lg.pop()
 end
 
--- One of the three big cards: class or weapon
+-- One of the three big cards: race, class or weapon
 local function drawCard(i)
     local order, defs = cardOrder()
     local id = order[i]
@@ -624,10 +608,10 @@ function outfit.draw()
         local title = ({race = "CHOOSE YOUR RACE", class = "CHOOSE YOUR CLASS", weapon = "CHOOSE A WEAPON",
             backstory = "CHOOSE A BACKGROUND"})[step]
         if chosenT and def then title = def.name:upper() .. "!" end
-        gfx.fancy(title, FIELD_X, step == "race" and 44 or 50, "big", (chosenT and def) and def.color or PAL.cream,
+        gfx.fancy(title, FIELD_X, 50, "big", (chosenT and def) and def.color or PAL.cream,
             1 + (chosenT and 0.1 or 0), math.sin(time * 1.5) * 0.02, 1, time)
         for i in ipairs(cardOrder()) do
-            if step == "race" then drawRaceCard(i) elseif step == "backstory" then drawBackgroundCard(i) else drawCard(i) end
+            if step == "backstory" then drawBackgroundCard(i) else drawCard(i) end
         end
         drawHoverNotes()
         if step == "weapon" and not chosenT then
