@@ -127,7 +127,8 @@ function ui.drawTip()
 end
 
 -- A cream speech bubble with its tail pointing left; text types itself out over t seconds
-function ui.bubble(text, x, y, w, t)
+-- tailRight: the tail points right (at a speaker standing right of the bubble) instead of left
+function ui.bubble(text, x, y, w, t, tailRight)
     local shown = text:sub(1, math.floor(t * 45))
     local _, lines = gfx.font.small:getWrap(text, w - 14)
     local h = 12 + #lines * gfx.font.small:getHeight()
@@ -135,7 +136,11 @@ function ui.bubble(text, x, y, w, t)
     lg.rectangle("fill", x + 2, y + 3, w, h, 6)
     lg.setColor(PAL.cream)
     lg.rectangle("fill", x, y, w, h, 6)
-    lg.polygon("fill", x + 1, y + 8, x + 1, y + 18, x - 9, y + 10)
+    if tailRight then
+        lg.polygon("fill", x + w - 1, y + 8, x + w - 1, y + 18, x + w + 9, y + 10)
+    else
+        lg.polygon("fill", x + 1, y + 8, x + 1, y + 18, x - 9, y + 10)
+    end
     lg.setFont(gfx.font.small)
     lg.setColor(PAL.ink)
     lg.printf(shown, x + 7, y + 6, w - 14, "left")

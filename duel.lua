@@ -14,21 +14,38 @@ local art = require("art")
 local lg = love.graphics
 local PAL, KINDS = gfx.PAL, data.KINDS
 
-local FIELD_X = 394                     -- centre of the play area right of the sidebar
-local PORTRAIT_Y = 128
-local PORTRAIT_SCALE = 1.38
-local RIVAL_ART_H = 204                 -- painted rivals, in game pixels
-local TABLE_Y = 180
-local TABLE_TINT = {0.08, 0.05, 0.04, 0.62}   -- see-through, so the painted table shows
-local RIVAL_DICE_Y = 206
+---------------------------------------------------------------------------
+-- The layout: you stand upper left, the rival upper right, each with their nerve and then their attack
+-- and defense in a panel beneath them (his dice sit in his); your dice sit front and centre in a low
+-- band along the bottom; relics, the location, gold and glory live in the sidebar.
+--   sbW: sidebar width, relicCols: its relic grid; me, foe: each fighter's centre x, feet y and height;
+--   stats: the panel under each fighter; rdice: his dice; score: where your hand counts up as it lands;
+--   tray: the bottom band; dice: your dice row; buttons: reroll, play and power
+---------------------------------------------------------------------------
+
+local layout = {sbW = 128, relicCols = 3,
+    me = {x = 240, feet = 192, h = 170}, foe = {x = 540, feet = 194, h = 182},
+    stats = {w = 158, y = 196}, rdice = {size = 18, gap = 22},
+    score = {x = 390, y = 70},
+    tray = {y = 294, h = 66}, dice = {y = 323, size = 32, gap = 44},
+    buttons = {reroll = {x = 140, y = 300, w = 96, h = 22}, ability = {x = 140, y = 328, w = 96, h = 22},
+        fight = {x = 540, y = 304, w = 94, h = 38}}}
+
+-- Where things sit, worked out from the layout: the field right of the sidebar, the fighters,
+-- the dice, and where the pop-ups for nerve, block, gold and his guard appear
+local FIELD_L, FIELD_W, FIELD_X = 156, 478, 394
+local RIVAL_X, PORTRAIT_Y = 394, 128    -- the rival's centre, where hits on him land
+local SCORE_X, SCORE_Y = 394, 70
+local DICE_X, TRAY_Y = 394, 264         -- your dice row
+local RIVAL_DICE_X, RIVAL_DICE_Y = 548, 206
 local RIVAL_SIZE, RIVAL_GAP = 28, 38
 local DIE_SIZE, DIE_GAP = 38, 50
-local TRAY_Y = 264
-local CHARM_X, CHARM_Y = 176, 26
-local HP_POS = {x = 118, y = 74}        -- where nerve, block and gold popups appear
+local HP_POS = {x = 118, y = 74}
 local BLOCK_POS = {x = 40, y = 92}
-local GOLD_POS = {x = 114, y = 92}
+local GOLD_POS = {x = 60, y = 80}
 local RIVAL_HP = {x = 168, y = 204, w = 120}
+local PORTRAIT_SCALE = 1.38
+local SB_RELIC_Y = 128                  -- where the sidebar's relic grid starts
 -- how hard rivals hit and how much nerve they have; the campaign makes both tougher (set on enter)
 local rivalPower, rivalHpScale = data.RIVAL_POWER, data.RIVAL_HP_SCALE
 
@@ -52,6 +69,37 @@ local rage, riposteNext, jugg, warBanner, arcane, scheme   -- prestige states th
 local flourishBase, vanishTurn = 0, nil
 local lastEv                            -- the hand you last played, explained, for hovering its numbers
 local BLANK = {kind = "blank", value = 0}
+
+-- Inside each fighter's stat block: the name, then the nerve bar, then (his) dice, then the hand's numbers
+local STAT_BAR, STAT_DICE, STAT_HAND = 14, 38, 28
+
+-- Sets every position from the layout
+local function applyLayout()
+    local L = layout
+    FIELD_L = L.sbW + 6
+    FIELD_W = gfx.W - FIELD_L - 4
+    FIELD_X = FIELD_L + FIELD_W / 2
+    RIVAL_X, PORTRAIT_Y = L.foe.x, L.foe.feet - L.foe.h * 0.6
+    SCORE_X, SCORE_Y = L.score.x, L.score.y
+    DICE_X, TRAY_Y = FIELD_X, L.dice.y
+    DIE_SIZE, DIE_GAP = L.dice.size, L.dice.gap
+    RIVAL_SIZE, RIVAL_GAP = L.rdice.size, L.rdice.gap
+    local w, top = L.stats.w, L.stats.y
+    RIVAL_DICE_X, RIVAL_DICE_Y = L.foe.x, top + STAT_DICE
+    HP_POS = {x = L.me.x, y = top + STAT_BAR - 14}
+    BLOCK_POS = {x = L.me.x + w / 2 - 16, y = top + STAT_BAR + 4}
+    RIVAL_HP = {x = L.foe.x - w / 2 + 6, y = top + STAT_BAR, w = w - 46}
+    GOLD_POS = {x = 6 + (L.sbW - 6) / 2, y = 82}
+end
+applyLayout()
+
+-- Where relic i sits in the sidebar's grid
+local function charmPos(i)
+    local cols = layout.relicCols
+    local cellW = (layout.sbW - 16) / cols
+    local col, row = (i - 1) % cols, math.floor((i - 1) / cols)
+    return 11 + cellW * (col + 0.5), SB_RELIC_Y + 28 + row * 42
+end
 
 ---------------------------------------------------------------------------
 -- Dice
@@ -606,16 +654,16 @@ local function damageRival(n, pierce)
     rival.block = rival.block - absorbed
     rival.hp = math.max(0, rival.hp - dmg)
     rival.parried, rival.took = rival.parried + absorbed, rival.took + dmg
-    fx.slash(FIELD_X, PORTRAIT_Y)
+    fx.slash(RIVAL_X, PORTRAIT_Y)
     if absorbed > 0 then fx.text("-" .. absorbed, RIVAL_HP.x + RIVAL_HP.w + 14, RIVAL_HP.y - 8, PAL.blue, "med") end
     if dmg > 0 then
         rival.flash, rival.shake = 1, 1
         fx.tween(rival, 0.5, {shake = 0})
         setMood("hit", 0.6)
-        fx.text(dmg, FIELD_X + math.random(-10, 10), PORTRAIT_Y - 20, PAL.red, dmg >= 15 and "huge" or "big",
+        fx.text(dmg, RIVAL_X + math.random(-10, 10), PORTRAIT_Y - 20, PAL.red, dmg >= 15 and "huge" or "big",
             {shake = true, life = 1.1})
         fx.addShake(math.min(0.7, 0.2 + dmg * 0.02))
-        fx.burst(FIELD_X, PORTRAIT_Y, math.min(40, 8 + dmg), {1, 0.85, 0.55}, 140)
+        fx.burst(RIVAL_X, PORTRAIT_Y, math.min(40, 8 + dmg), {1, 0.85, 0.55}, 140)
         sfx.play("hit", 1.15 - math.min(0.4, dmg * 0.01))
         if rival.hp > 0 and math.random() < 0.4 then
             local lines = rival.def.hitLines
@@ -627,7 +675,7 @@ local function damageRival(n, pierce)
     if rival.hp <= 0 then
         rival.dead = true
         fx.tween(rival, 1.0, {drop = 1}, "out")
-        fx.burst(FIELD_X, PORTRAIT_Y, 40, PAL.gold, 180)
+        fx.burst(RIVAL_X, PORTRAIT_Y, 40, PAL.gold, 180)
         fx.addShake(0.5)
         sfx.play("death")
         say(rival.def.koLine)
@@ -876,7 +924,7 @@ local function rivalAct()
     fx.after(0.45, function()
         if trick("nap") then
             say("Zzz...")
-            fx.text("ZZZ", FIELD_X + 30, PORTRAIT_Y - 30, PAL.grey, "big")
+            fx.text("ZZZ", RIVAL_X + 30, PORTRAIT_Y - 30, PAL.grey, "big")
             return
         end
         local atk = rivalAttack()
@@ -887,9 +935,9 @@ local function rivalAct()
                 bank = bank + atk
                 fx.text("WARDED +" .. atk, BLOCK_POS.x + 40, BLOCK_POS.y - 24, PAL.blue, "med", {shake = true})
             elseif now.vanish then
-                fx.text("VANISHED!", FIELD_X + 30, PORTRAIT_Y - 30, PAL.grey, "big")
+                fx.text("VANISHED!", RIVAL_X + 30, PORTRAIT_Y - 30, PAL.grey, "big")
             else
-                fx.text("TURNABOUT!", FIELD_X, PORTRAIT_Y - 44, PAL.purple, "big", {shake = true})
+                fx.text("TURNABOUT!", RIVAL_X, PORTRAIT_Y - 44, PAL.purple, "big", {shake = true})
                 damageRival(atk, true)
             end
             sfx.play("block", 1.3)
@@ -904,7 +952,7 @@ local function rivalAct()
                 end
                 local dmg = hurtPlayer(atk, pierce ~= nil)
                 if trick("double") and run.hp > 0 then
-                    fx.text("AGAIN!", FIELD_X + 30, PORTRAIT_Y - 30, PAL.red, "med")
+                    fx.text("AGAIN!", RIVAL_X + 30, PORTRAIT_Y - 30, PAL.red, "med")
                     dmg = dmg + hurtPlayer(math.floor(atk / 2), pierce ~= nil)
                 end
                 -- the Barbarian's rage (doubled while the Juggernaut is unstoppable), the Duelist's riposte
@@ -925,17 +973,17 @@ local function rivalAct()
                 end
                 if dmg > 0 and run.hasCharm("crown") and not rival.dead then
                     if AUTO_TEST then autoFired("crown") end
-                    fx.text("THORN CROWN", FIELD_X, PORTRAIT_Y - 44, PAL.green, "med")
+                    fx.text("THORN CROWN", RIVAL_X, PORTRAIT_Y - 44, PAL.green, "med")
                     damageRival(dmg * 2, true)
                 end
                 local parry = data.trait(run, "parry") + catchParry   -- the Sai, and its Catch Blade
                 if dmg == 0 and parry > 0 and not rival.dead then
-                    fx.text("PARRY", FIELD_X - 40, PORTRAIT_Y - 44, PAL.blue, "med")
+                    fx.text("PARRY", RIVAL_X - 40, PORTRAIT_Y - 44, PAL.blue, "med")
                     damageRival(parry, true)
                 end
                 local rebuke = data.trait(run, "rebuke")   -- the Tiefling's hellfire
                 if dmg > 0 and rebuke > 0 and not rival.dead then
-                    fx.text("HELLFIRE", FIELD_X + 40, PORTRAIT_Y - 30, PAL.red, "med")
+                    fx.text("HELLFIRE", RIVAL_X + 40, PORTRAIT_Y - 30, PAL.red, "med")
                     damageRival(rebuke, true)
                 end
             end)
@@ -949,11 +997,11 @@ local function rivalAct()
     if rivalAttack() > 0 and (thorns > 0 or rival.bleed > 0) then
         fx.after(0.4, function()
             if thorns > 0 and not rival.dead then
-                fx.text("THORNS", FIELD_X, PORTRAIT_Y - 44, PAL.green, "med")
+                fx.text("THORNS", RIVAL_X, PORTRAIT_Y - 44, PAL.green, "med")
                 damageRival(thorns, true)
             end
             if rival.bleed > 0 and not rival.dead then
-                fx.text("BLEED", FIELD_X + 40, PORTRAIT_Y - 30, PAL.red, "med")
+                fx.text("BLEED", RIVAL_X + 40, PORTRAIT_Y - 30, PAL.red, "med")
                 damageRival(rival.bleed, true)
                 rival.bleed = math.floor(rival.bleed / 2)
             end
@@ -973,7 +1021,7 @@ local function rivalAct()
                 local gain = (k == "debt" and math.floor(rival.took / 4)) or KINDS[k].str or v
                 if gain > 0 then
                     rival.str = rival.str + gain
-                    fx.text((k == "channel" and "POWER +" or "STR +") .. gain, FIELD_X, y, PAL.red, "big")
+                    fx.text((k == "channel" and "POWER +" or "STR +") .. gain, RIVAL_X, y, PAL.red, "big")
                     sfx.play("mult", 0.6)
                     rise = rise + 18
                 end
@@ -993,7 +1041,7 @@ local function rivalAct()
                 sfx.play("coin", 0.7)
             elseif k == "pray" then
                 rival.patience = rival.patience + v
-                fx.text("PATIENCE +" .. v, FIELD_X, y, PAL.gold, "med")
+                fx.text("PATIENCE +" .. v, RIVAL_X, y, PAL.gold, "med")
                 sfx.play("heal", 0.6)
                 rise = rise + 18
             end
@@ -1014,7 +1062,7 @@ local function rivalAct()
     if rival.poison > 0 then
         fx.after(0.45, function()
             if rival.dead then return end
-            fx.text("POISON", FIELD_X, PORTRAIT_Y - 44, PAL.green, "med")
+            fx.text("POISON", RIVAL_X, PORTRAIT_Y - 44, PAL.green, "med")
             damageRival(rival.poison, true)
             rival.poison = rival.poison - 1
         end)
@@ -1050,7 +1098,7 @@ local function resolve()
     fx.after(0.1, function()
         score = s
         s.multPop = 1
-        fx.text(ev.pat.name .. "!", FIELD_X, 226, PAL.gold, "big", {shake = ev.pat.mult > 1})
+        fx.text(ev.pat.name .. "!", SCORE_X, SCORE_Y - 34, PAL.gold, "big", {shake = ev.pat.mult > 1})
         sfx.play(ev.pat.mult > 1 and "mult" or "tick", 0.8 + ev.pat.mult * 0.1)
         if ev.pat.mult > 1 then fx.addShake(0.08 + ev.pat.mult * 0.05) end
     end)
@@ -1059,7 +1107,7 @@ local function resolve()
             local text = c.name .. (c.mult and (" +" .. c.mult .. " MULT") or c.atkMult and (" +" .. c.atkMult .. " ATK MULT")
                 or (" +" .. c.defMult .. " DEF MULT"))
             if c.mult then s.mult, s.multPop = s.mult + c.mult, 1 end
-            fx.text(text, FIELD_X, 226 - i * 14, PAL.gold, "med", {shake = true})
+            fx.text(text, SCORE_X, SCORE_Y - 34 - i * 14, PAL.gold, "med", {shake = true})
             sfx.play("mult", 0.9 + i * 0.1)
             fx.addShake(0.15)
         end)
@@ -1108,7 +1156,8 @@ local function resolve()
             if e.atk then s.atk, s.atkPop = s.atk + e.atk, 1 end
             if e.def then s.def, s.defPop = s.def + e.def, 1 end
             if e.xAtk or e.xDef then fx.addShake(0.25) end
-            fx.text(e.text, ui.charmX(CHARM_X, e.index), CHARM_Y + 26, PAL.gold, "med")
+            local cx, cy = charmPos(e.index)
+            fx.text(e.text, cx + 40, cy, PAL.gold, "med")
             sfx.play("coin", 1.3)
         end)
     end
@@ -1129,19 +1178,19 @@ local function resolve()
         end
         local tookBefore = rival.took
         if ev.execute then   -- the Assassin's killing blow
-            fx.text("ASSASSINATED!", FIELD_X, PORTRAIT_Y - 44, PAL.red, "huge", {shake = true, life = 1.4})
+            fx.text("ASSASSINATED!", RIVAL_X, PORTRAIT_Y - 44, PAL.red, "huge", {shake = true, life = 1.4})
             damageRival(rival.hp, true)
         end
         if ev.atkTotal > 0 and not rival.dead then damageRival(ev.atkTotal, pierces()) end
         -- Arcane Bolt and Shiv strike past his guard
         if ev.bolt > 0 and not rival.dead then
-            fx.text("BOLT", FIELD_X - 50, PORTRAIT_Y - 44, PAL.purple, "med")
+            fx.text("BOLT", RIVAL_X - 50, PORTRAIT_Y - 44, PAL.purple, "med")
             damageRival(ev.bolt, true)
         end
         -- the Beastmaster's wolf
         local wolf = data.trait(run, "wolf")
         if wolf > 0 and not rival.dead then
-            fx.text(now.sic and "SIC 'EM!" or "WOLF", FIELD_X + 50, PORTRAIT_Y - 20, PAL.gold, "med")
+            fx.text(now.sic and "SIC 'EM!" or "WOLF", RIVAL_X + 50, PORTRAIT_Y - 20, PAL.gold, "med")
             damageRival(wolf * (run.act or 1) * (now.sic and 4 or 1), true)
             rival.bleed = rival.bleed + 1
         end
@@ -1163,10 +1212,10 @@ local function resolve()
         end
         if ev.pick > 0 and rival.took > 0 then
             ev.gold = ev.gold + ev.pick
-            fx.text("PICKPOCKET", FIELD_X + 50, PORTRAIT_Y - 30, PAL.gold, "med")
+            fx.text("PICKPOCKET", RIVAL_X + 50, PORTRAIT_Y - 30, PAL.gold, "med")
         end
         weaken = ev.weaken
-        if weaken > 0 then fx.text("WEAKENED -" .. weaken, 548, RIVAL_DICE_Y + 26, PAL.grey, "med", {shake = true}) end
+        if weaken > 0 then fx.text("WEAKENED -" .. weaken, RIVAL_DICE_X, RIVAL_DICE_Y + 26, PAL.grey, "med", {shake = true}) end
         if now.charge then block = 0 end   -- the Cavalier's block went into the lance
         -- prestige states this hand used up
         riposteNext = false
@@ -1182,13 +1231,13 @@ local function resolve()
         if ev.vamp then ev.heal = ev.heal + math.floor(rival.took / ev.vamp) end
         if ev.grow > 0 then
             growth = growth + ev.grow
-            fx.text("GROWTH +" .. growth, FIELD_X - 90, TRAY_Y - 40, PAL.green, "med")
+            fx.text("GROWTH +" .. growth, DICE_X - 90, TRAY_Y - 40, PAL.green, "med")
         end
         if ev.poison > 0 or ev.bleed > 0 then
             rival.poison, rival.bleed = rival.poison + ev.poison, rival.bleed + ev.bleed
             if ev.envenom then
                 rival.poison = rival.poison * 2
-                fx.text("ENVENOM x2", FIELD_X + 50, PORTRAIT_Y - 44, PAL.green, "med")
+                fx.text("ENVENOM x2", RIVAL_X + 50, PORTRAIT_Y - 44, PAL.green, "med")
             end
             sfx.play("death", 1.6)
         end
@@ -1225,7 +1274,7 @@ local function resolve()
         -- Punch-Out rule: hit hard enough during the tell and the signature never comes
         if isTell() and not rival.dead and ev.atkTotal + ev.daze >= rival.stagger then
             rival.staggered = true
-            fx.text("STAGGERED!", FIELD_X, PORTRAIT_Y - 44, PAL.gold, "huge", {shake = true, life = 1.4})
+            fx.text("STAGGERED!", RIVAL_X, PORTRAIT_Y - 44, PAL.gold, "huge", {shake = true, life = 1.4})
             fx.addShake(0.6)
             sfx.play("mult", 0.5)
             say("Wha-- whoa...!")
@@ -1411,7 +1460,7 @@ local function rivalLanded()
         if k == "brace" then hand.def = hand.def * 2 end
         if k == "surge" and r.kind == "sword" and b.kind == "shield" and r.value % 2 == 0 and b.value % 2 == 0 then
             hand.atk = hand.atk * 2
-            fx.text("ARC SURGE!", 548, RIVAL_DICE_Y + 26, PAL.blue, "med", {shake = true})
+            fx.text("ARC SURGE!", RIVAL_DICE_X, RIVAL_DICE_Y + 26, PAL.blue, "med", {shake = true})
         end
         if k == "swap" then hand.atk, hand.def = hand.def, hand.atk end
         if k == "bonewall" then
@@ -1425,7 +1474,7 @@ local function rivalLanded()
     rival.block = rival.block + hand.def
     if hand.def > 0 then sfx.play("block", 0.9) end
     if pat.mult > 1 then
-        fx.text(pat.name .. "!", 548, RIVAL_DICE_Y - 22, PAL.gold, "med", {shake = true})
+        fx.text(pat.name .. "!", RIVAL_DICE_X, RIVAL_DICE_Y - 22, PAL.gold, "med", {shake = true})
         sfx.play("mult", 0.7 + pat.mult * 0.1)
     end
     for _, sp in ipairs(specials) do
@@ -1481,7 +1530,7 @@ end
 function rivalRoll()
     turn = turn + 1
     if turn == data.STALL_TURN + 1 then
-        fx.text("IMPATIENT! +ATK EVERY TURN", FIELD_X, PORTRAIT_Y - 60, PAL.red, "med", {shake = true, life = 2})
+        fx.text("IMPATIENT! +ATK EVERY TURN", RIVAL_X, PORTRAIT_Y - 60, PAL.red, "med", {shake = true, life = 2})
     end
     if weather() then return end
     now, targeting = {}, nil
@@ -1490,7 +1539,7 @@ function rivalRoll()
     -- the Monster Hunter's trap springs on his signature turn
     if rival.baited and isSig() then
         rival.baited, rival.staggered = false, true
-        fx.text("TRAPPED!", FIELD_X, PORTRAIT_Y - 44, PAL.gold, "huge", {shake = true, life = 1.4})
+        fx.text("TRAPPED!", RIVAL_X, PORTRAIT_Y - 44, PAL.gold, "huge", {shake = true, life = 1.4})
     end
     if rival.staggered then
         rival.staggered, rival.dizzy = false, true
@@ -1564,13 +1613,13 @@ local function canUseAbility() return ability ~= nil and not abilityUsed and pha
 local function raiseDead()
     local faces = {}
     for j, v in ipairs({2, 2, 3, 3, 4, 4}) do faces[j] = {kind = "sword", value = v} end
-    local d = newDie(faces, {0.55, 0.52, 0.42}, FIELD_X, TRAY_Y + 90)
+    local d = newDie(faces, {0.55, 0.52, 0.42}, DICE_X, TRAY_Y + 90)
     d.mine, d.role = true, "bone"
     mine[#mine + 1] = d
     for i, o in ipairs(mine) do
-        fx.tween(o, 0.35, {x = FIELD_X + (i - (#mine + 1) / 2) * DIE_GAP, y = TRAY_Y}, "back")
+        fx.tween(o, 0.35, {x = DICE_X + (i - (#mine + 1) / 2) * DIE_GAP, y = TRAY_Y}, "back")
     end
-    fx.burst(FIELD_X, TRAY_Y, 30, {0.7, 0.9, 0.6}, 140)
+    fx.burst(DICE_X, TRAY_Y, 30, {0.7, 0.9, 0.6}, 140)
     phase = "rolling"
     roll({d})
 end
@@ -1603,7 +1652,7 @@ local function useAbility()
     abilityUsed, targeting = true, nil
     local a = ability
     if AUTO_TEST then print(string.format("AUTO: ability %s on turn %d, rival %d/%d", a, turn, rival.hp, rival.maxHp)) end
-    fx.text(ABILITY_LABELS[a] .. "!", FIELD_X, TRAY_Y - 46, abilityDef().color, "big", {shake = true, life = 1.2})
+    fx.text(ABILITY_LABELS[a] .. "!", DICE_X, TRAY_Y - 46, abilityDef().color, "big", {shake = true, life = 1.2})
     fx.flashScreen(1, 0.85, 0.5, 0.2)
     fx.addShake(0.3)
     sfx.play("mult", 0.7)
@@ -1626,14 +1675,14 @@ local function useAbility()
     elseif a == "assassinate" then now.assassin = true
     elseif a == "doubleornothing" then
         now.coin = math.random() < 0.5 and 3 or 0.5
-        fx.text(now.coin > 1 and "HEADS! x3" or "TAILS... x0.5", FIELD_X, TRAY_Y - 30, now.coin > 1 and PAL.gold or PAL.red,
+        fx.text(now.coin > 1 and "HEADS! x3" or "TAILS... x0.5", DICE_X, TRAY_Y - 30, now.coin > 1 and PAL.gold or PAL.red,
             "big", {shake = true, life = 1.4})
     elseif a == "longcon" then now.con = scheme
     else now[a] = true end   -- the rest only change this turn: see evaluate, resolve and rivalAct
 end
 
 -- Where the Wayfinder's face choices sit, above the chosen die
-local function guidePos(d, j) return d.x + (j - (#d.faces + 1) / 2) * 30, TRAY_Y + 36 end
+local function guidePos(d, j) return d.x + (j - (#d.faces + 1) / 2) * 30, TRAY_Y - DIE_SIZE / 2 - 22 end
 
 -- A click while a power waits on a target; true when it was used up
 local function aim(x, y)
@@ -1686,7 +1735,7 @@ local function drawAbility()
     if gfx.inside(b, scene.mx, scene.my) then ui.tip = {title = def.name:upper(), desc = def.perk, color = def.color} end
     if targeting then
         local text = ability == "rune" and "Click a die to etch" or (targeting.die and "Pick its face" or "Click a die to turn")
-        gfx.print(text, FIELD_X, TRAY_Y - 40, "med", PAL.gold, "center", 240)
+        gfx.print(text, DICE_X, TRAY_Y - DIE_SIZE / 2 - (targeting.die and 52 or 22), "med", PAL.gold, "center", 240)
         local die = targeting.die
         if die then
             for j, face in ipairs(die.faces) do
@@ -1891,14 +1940,9 @@ end
 -- Scene callbacks
 ---------------------------------------------------------------------------
 
-function duel.enter()
-    local def = data.RIVALS[run.rival]
-    scene.bg = def.boss and gfx.BG.boss or gfx.BG.tavern
-    -- campaign duels are fought in the location you're exploring (or the boss's lair), under its rule
-    local where = run.mode == "campaign" and run.location
-    if LOC then where = LOC ~= "none" and LOC end   -- test runs: --loc
-    loc = where and data.LOCATIONS[where] or nil
-    if loc then scene.backdrop, scene.dim = where, 0.3 end
+-- Everything a fresh duel starts from (kept apart from duel.enter: Lua caps how many outer locals one
+-- function can use)
+local function resetDuelState()
     time, hpShake, turn, block, rerolls = 0, 0, 0, 0, 0
     score, banner, bubble, hand, introT = nil, nil, nil, nil, 0
     rot, streak = 0, 0
@@ -1908,6 +1952,45 @@ function duel.enter()
     ability, abilityUsed, now, targeting = data.ability(run), false, {}, nil
     rage, riposteNext, jugg, warBanner, arcane, scheme = 0, false, 0, 0, false, 0
     flourishBase, vanishTurn, lastEv = 0, nil, nil
+end
+
+-- Your dice in the tray and his in his panel, and the buttons
+local function setTable(def)
+    mine = {}
+    for i, die in ipairs(run.dice) do
+        local d = newDie(run.copyDie(die).faces, data.bodyOf(die), DICE_X + (i - (#run.dice + 1) / 2) * DIE_GAP, TRAY_Y + 90)
+        d.mine, d.role = true, die.role
+        mine[i] = d
+        if die.role == "custom" then modDie = d end
+        fx.tween(d, 0.4 + i * 0.05, {y = TRAY_Y}, "back")
+    end
+    theirs = {}
+    -- red, blue, then one trick die (two for elites, three for bosses), packed closer when there are more
+    local bodies = {data.ROLE_COLORS.red, data.ROLE_COLORS.blue}
+    local gap = RIVAL_GAP * (#def.dice > 3 and 0.85 or 1)
+    for i, faces in ipairs(def.dice) do
+        theirs[i] = newDie(faces, bodies[i] or def.dieColor, RIVAL_DICE_X + (i - (#def.dice + 1) / 2) * gap, RIVAL_DICE_Y)
+    end
+
+    local B = layout.buttons
+    local function button(b, label, color) return {x = b.x, y = b.y, w = b.w, h = b.h, label = label, color = color} end
+    buttons = {
+        reroll = button(B.reroll, "REROLL", PAL.red),
+        fight = button(B.fight, "PLAY HAND", PAL.blue),
+        continue = {x = FIELD_X - 70, y = 196, w = 140, h = 30, label = "SPOILS", color = PAL.blue},
+        ability = button(B.ability, "", PAL.gold),
+    }
+end
+
+function duel.enter()
+    local def = data.RIVALS[run.rival]
+    scene.bg = def.boss and gfx.BG.boss or gfx.BG.tavern
+    -- campaign duels are fought in the location you're exploring (or the boss's lair), under its rule
+    local where = run.mode == "campaign" and run.location
+    if LOC then where = LOC ~= "none" and LOC end   -- test runs: --loc
+    loc = where and data.LOCATIONS[where] or nil
+    if loc then scene.backdrop, scene.dim = where, 0.3 end
+    resetDuelState()
     local camp = run.mode == "campaign" and run.chapter() or {}
     rivalPower = data.RIVAL_POWER * (camp.power or 1)
     rivalHpScale = data.RIVAL_HP_SCALE * (camp.hpScale or 1)
@@ -1932,29 +2015,7 @@ function duel.enter()
         carry = 0, took = 0, parried = 0, warcry = 0, bones = 0, lastTrick = nil, flicked = false, poison = 0, bleed = 0,
         flash = 0, shake = 0, punch = 0, drop = 0, sc = 0, mood = nil, moodT = 0}
     fx.tween(rival, 0.6, {sc = 1}, "back")
-
-    mine = {}
-    for i, die in ipairs(run.dice) do
-        local d = newDie(run.copyDie(die).faces, data.bodyOf(die), FIELD_X + (i - (#run.dice + 1) / 2) * DIE_GAP, TRAY_Y + 90)
-        d.mine, d.role = true, die.role
-        mine[i] = d
-        if die.role == "custom" then modDie = d end
-        fx.tween(d, 0.4 + i * 0.05, {y = TRAY_Y}, "back")
-    end
-    theirs = {}
-    -- red, blue, then one trick die (two for elites, three for bosses), packed closer when there are more
-    local bodies = {data.ROLE_COLORS.red, data.ROLE_COLORS.blue}
-    local gap = #def.dice > 3 and RIVAL_GAP - 6 or RIVAL_GAP
-    for i, faces in ipairs(def.dice) do
-        theirs[i] = newDie(faces, bodies[i] or def.dieColor, FIELD_X + (i - (#def.dice + 1) / 2) * gap, RIVAL_DICE_Y)
-    end
-
-    buttons = {
-        reroll = {x = FIELD_X - 126, y = 316, w = 120, h = 26, label = "REROLL", color = PAL.red},
-        fight = {x = FIELD_X + 6, y = 316, w = 120, h = 26, label = "PLAY HAND", color = PAL.blue},
-        continue = {x = FIELD_X - 70, y = 196, w = 140, h = 30, label = "SPOILS", color = PAL.blue},
-        ability = {x = FIELD_X - 232, y = 316, w = 100, h = 26, label = "", color = PAL.gold},
-    }
+    setTable(def)
     phase = "intro"
     sfx.play("mult", 0.5)
 end
@@ -2057,105 +2118,6 @@ end
 
 local function hovering(x, y, w, h) return scene.mx > x and scene.mx < x + w and scene.my > y and scene.my < y + h end
 
-local function drawRival()
-    local wave = math.sin(time * 2.2)
-    local mood = rival.mood or baseMood()
-    local hop = (mood == "tell" and rival.def.name == "Old Pip") and math.abs(math.sin(time * 6)) * 5 or 0
-    if art.has(run.rival) then
-        -- painted rivals stand behind the table, seen from the waist up
-        local s = rival.sc * (1 + rival.punch * 0.2)
-        local glow = (mood == "tell" or mood == "sig") and {1, 0.35, 0.25, 0.5 + 0.3 * math.sin(time * 8)} or nil
-        lg.push()
-        lg.translate(FIELD_X + (math.random() - 0.5) * 6 * rival.shake, TABLE_Y + 74 + rival.drop * 50
-            + rival.punch * 18 - hop + math.floor(wave + 0.5))
-        lg.scale(s)
-        art.draw(run.rival, 0, 0, RIVAL_ART_H, glow, rival.flash)
-        lg.pop()
-        return
-    end
-    local s = PORTRAIT_SCALE * rival.sc * (1 + rival.punch * 0.35)
-    lg.push()
-    lg.translate(FIELD_X + (math.random() - 0.5) * 6 * rival.shake, PORTRAIT_Y + wave * 1.5 + rival.drop * 50
-        + rival.punch * 18 - hop)
-    lg.scale(s * (1 + wave * 0.01), s * (1 - wave * 0.01))
-    portraits.draw(run.rival, mood, time, rival.flash)
-    lg.pop()
-end
-
-local function drawTable()
-    gfx.panel(156, TABLE_Y, 478, 174, TABLE_TINT, 8)
-    lg.setColor(PAL.wood[1] * 0.6, PAL.wood[2] * 0.6, PAL.wood[3] * 0.6)
-    lg.rectangle("fill", 156, TABLE_Y - 4, 478, 12, 4)
-    lg.setColor(PAL.wood)
-    lg.rectangle("fill", 156, TABLE_Y - 5, 478, 9, 4)
-    lg.setColor(1, 1, 1, 0.08)
-    lg.rectangle("fill", 160, TABLE_Y - 4, 470, 2)
-    lg.setColor(0, 0, 0, 0.2)
-    for x = 170, 620, 10 do lg.rectangle("fill", x, 224, 5, 1) end
-end
-
-local function drawRivalStatus()
-    local x, y, w = RIVAL_HP.x, RIVAL_HP.y, RIVAL_HP.w
-    gfx.print(rival.def.name:upper(), x, y - 18, "small", PAL.cream, "left", 160)
-    gfx.bar(x, y, w, 10, rival.hpShown / rival.maxHp, PAL.red, rival.hp .. "/" .. rival.maxHp)
-    if rival.block > 0 then
-        gfx.icon("shield", x + w + 14, y + 5, 22, PAL.blue)
-        gfx.print(rival.block, x + w + 14, y - 1, "small", PAL.white, "center", 24)
-    end
-    local ty = y + 15
-    if rival.str > 0 then
-        gfx.print("STR +" .. rival.str, x, ty, "small", PAL.red)
-        ty = ty + 11
-    end
-
-    local function stat(text, color)
-        gfx.print(text, x, ty, "small", color)
-        ty = ty + 11
-    end
-    if rival.patience > 0 then stat("PATIENCE " .. rival.patience, PAL.gold) end
-    if rival.bones > 0 then stat("BONES " .. rival.bones, PAL.grey) end
-    if rival.warcry > 0 then stat("WAR CRY +" .. rival.warcry, PAL.red) end
-    if rival.carry > 0 then stat("AURA " .. rival.carry, PAL.blue) end
-    if rival.poison > 0 then stat("POISON " .. rival.poison, PAL.green) end
-    if rival.bleed > 0 then stat("BLEED " .. rival.bleed, PAL.red) end
-end
-
-local function drawRivalHand()
-    -- the hand's summary sits just right of the rival's last die (bosses throw five)
-    local x, y = math.max(470, theirs[#theirs].x + 26), 190 - 2 * (#theirs - 3)
-    local pips = pipsOf(theirs)
-    for i, d in ipairs(theirs) do
-        local face = faceOf(d)
-        local rot = d.rot + (d.rolling > 0 and 0 or math.sin(time * 2 + d.wob) * 0.03)
-        if i <= 3 and pips[i] == "wild" and d.rolling <= 0 then wildGlow(d.x, dieY(d), RIVAL_SIZE, d.sc) end
-        gfx.die(face, d.x, dieY(d), RIVAL_SIZE, rot, d.sc, {body = d.body, dim = hand and hand.dizzy,
-            outline = hand and hand.sig and PAL.gold})
-        if phase ~= "intro" and overDie(d, scene.mx, scene.my, RIVAL_SIZE) then ui.tipFace(face) end
-    end
-    if not hand then return end
-    if hand.dizzy then
-        gfx.fancy("DIZZY!", 548, y + 18, "big", PAL.gold, 1, math.sin(time * 3) * 0.1, 1, time)
-        return
-    end
-    gfx.print(hand.pattern.name .. (hand.pattern.mult > 1 and (" x" .. hand.pattern.mult) or ""), x, y - 2, "small",
-        hand.pattern.mult > 1 and PAL.gold or PAL.grey)
-    local atk = rivalAttack()
-    gfx.icon("sword", x + 7, y + 19, 14, PAL.red)
-    gfx.print(atk, x + 16, y + 12, "med", PAL.red)
-    gfx.icon("shield", x + 57, y + 19, 14, PAL.blue)
-    gfx.print(hand.def, x + 66, y + 12, "med", PAL.blue)
-    if hovering(x, y + 10, 50, 18) then ui.tip = rivalTip("atk")
-    elseif hovering(x + 50, y + 10, 50, 18) then ui.tip = rivalTip("def") end
-    local ty = y + 29
-    for _, sp in ipairs(hand.specials) do
-        if sp.kind ~= "blank" then
-            local k = KINDS[sp.kind]
-            gfx.print(k.name:upper(), x, ty, "small", k.color, "left", 160)
-            ty = ty + 10
-        end
-    end
-end
-
 -- A pulsing violet halo behind a die that counts as wild, so wilds stand out at a glance
 local function wildGlow(x, y, size, sc)
     local c = KINDS.wild.color
@@ -2168,6 +2130,193 @@ local function wildGlow(x, y, size, sc)
     lg.setColor(1, 1, 1)
 end
 
+-- Your hero's painting: your race dressed for your class (or just your race)
+local function heroLook()
+    local look = (run.race or "human") .. "_" .. (run.class or "warrior")
+    if art.has(look) then return look end
+    return run.race and art.has(run.race) and run.race or nil
+end
+
+-- What your hero is called above their nerve: race, then latest prestige or class
+local function heroName()
+    local race = run.race and data.RACES[run.race].name or "Peasant"
+    local p = run.prestige and run.prestige[#run.prestige]
+    local title = p and data.PRESTIGES[p].name or (run.class and data.CLASSES[run.class].name) or ""
+    return (race .. " " .. title):upper()
+end
+
+-- You on the left, him on the right, standing in the location's painting
+local function drawFighters()
+    local L = layout
+    local look = heroLook()
+    if look then
+        local sh = (math.random() - 0.5) * 6 * hpShake
+        art.draw(look, L.me.x + sh, L.me.feet + math.floor(math.sin(time * 1.8) + 0.5), L.me.h, nil, hpShake * 0.6)
+    end
+    local wave = math.sin(time * 2.2)
+    local mood = rival.mood or baseMood()
+    local hop = (mood == "tell" and rival.def.name == "Old Pip") and math.abs(math.sin(time * 6)) * 5 or 0
+    local shake = (math.random() - 0.5) * 6 * rival.shake
+    if art.has(run.rival) then
+        local s = rival.sc * (1 + rival.punch * 0.12)
+        local glow = (mood == "tell" or mood == "sig") and {1, 0.35, 0.25, 0.5 + 0.3 * math.sin(time * 8)} or nil
+        lg.push()
+        -- he lunges at you when he attacks, and sinks when he's beaten
+        lg.translate(RIVAL_X + shake - rival.punch * 30, L.foe.feet + rival.drop * 50 - hop + math.floor(wave + 0.5))
+        lg.scale(s)
+        art.draw(run.rival, 0, 0, L.foe.h, glow, rival.flash)
+        lg.pop()
+        return
+    end
+    local s = PORTRAIT_SCALE * (L.foe.h / 190) * rival.sc * (1 + rival.punch * 0.35)
+    lg.push()
+    lg.translate(RIVAL_X + shake, PORTRAIT_Y + wave * 1.5 + rival.drop * 50 - hop)
+    lg.scale(s * (1 + wave * 0.01), s * (1 - wave * 0.01))
+    portraits.draw(run.rival, mood, time, rival.flash)
+    lg.pop()
+end
+
+-- The low strip along the bottom that holds your dice
+local function drawTray()
+    local t = layout.tray
+    local x, w = FIELD_L, gfx.W - FIELD_L
+    lg.setColor(0.04, 0.03, 0.05, 0.74)
+    lg.rectangle("fill", x, t.y, w, t.h)
+    lg.setColor(1, 1, 1, 0.12)
+    lg.rectangle("fill", x, t.y, w, 1)
+end
+
+-- Behind a stat block: a dark see-through panel
+local function statBack(cx, top, w, h)
+    gfx.panel(cx - w / 2, top, w, h, {0.08, 0.07, 0.09, 0.84}, 6)
+end
+
+-- Words laid out left to right in their own colours, wrapping at width w; draws only when draw is set.
+-- Returns how many lines they took.
+local function flow(items, x, y, w, draw)
+    local font = gfx.font.small
+    local px, lines = x, #items > 0 and 1 or 0
+    for _, it in ipairs(items) do
+        local tw = font:getWidth(it[1])
+        if px > x and px + tw > x + w then px, y, lines = x, y + font:getHeight(), lines + 1 end
+        if draw then gfx.print(it[1], px, y, "small", it[2], "left", tw + 4) end
+        px = px + tw + font:getWidth("  ")
+    end
+    return lines
+end
+
+-- A fighter's nerve bar with their block in a shield at its right end
+local function nerveBar(x, top, w, hp, shown, max, blk, sh)
+    gfx.bar(x + 6 + (sh or 0), top + STAT_BAR, w - 46, 10, shown / max, PAL.red, hp .. "/" .. max)
+    gfx.icon("shield", x + w - 22, top + STAT_BAR + 5, 18, blk > 0 and PAL.blue or PAL.grey)
+    gfx.print(blk, x + w - 22, top + STAT_BAR - 1, "small", PAL.white, "center", 30)
+end
+
+-- A hand's pattern, then its attack and defense; hovering any of them shows the math (tipOf(side))
+local function handLine(x, y, w, patText, multText, atk, def, tipOf)
+    gfx.print(patText, x + 6, y, "small", PAL.gold, "left", w - 50)
+    if multText then gfx.print(multText, x + w - 6, y, "small", PAL.gold, "right", 44) end
+    gfx.icon("sword", x + 13, y + 19, 13, PAL.red)
+    gfx.print(atk, x + 22, y + 12, "med", PAL.red, "left", w / 2 - 22)
+    gfx.icon("shield", x + w / 2 + 9, y + 19, 13, PAL.blue)
+    gfx.print(def, x + w / 2 + 18, y + 12, "med", PAL.blue, "left", w / 2 - 22)
+    if not tipOf then return end
+    if hovering(x, y + 10, w / 2, 18) then ui.tip = tipOf("atk")
+    elseif hovering(x + w / 2, y + 10, w / 2, 18) then ui.tip = tipOf("def")
+    elseif multText and hovering(x, y, w, 11) then ui.tip = tipOf("mult") end
+end
+
+-- Under you: your nerve and block, then what this hand does (or the one landing)
+local function drawMyStats()
+    local L = layout
+    local w, top, cx = L.stats.w, L.stats.y, L.me.x
+    local x = cx - w / 2
+    local ev = phase == "choose" and evaluate(true) or lastEv
+    local notes = {}
+    local function note(text, color) notes[#notes + 1] = {text, color or PAL.green} end
+    if phase == "choose" and ev then
+        if ev.gold > 0 then note("+" .. ev.gold .. "g", PAL.gold) end
+        if ev.heal > 0 then note("+" .. ev.heal .. " nerve") end
+        if ev.shatter then note("shatter", PAL.purple) end
+        if ev.poison > 0 then note("+" .. ev.poison .. " poison") end
+        if ev.bleed > 0 then note("+" .. ev.bleed .. " bleed", PAL.red) end
+        if ev.thorns then note("thorns " .. ev.thorns) end
+        if ev.vamp then note("vampiric", PAL.red) end
+        if ev.bank then note("bank " .. math.floor(ev.defTotal / 2), PAL.blue) end
+        if growth + ev.grow > 0 then note("growth +" .. (growth + ev.grow)) end
+        if ev.sunder > 0 then note("sunder " .. ev.sunder, PAL.red) end
+        if ev.weaken > 0 then note("weaken " .. ev.weaken, PAL.grey) end
+        if ev.pick > 0 then note("pickpocket", PAL.gold) end
+        if ev.bolt > 0 then note("bolt " .. ev.bolt, PAL.purple) end
+        if ev.envenom then note("envenom") end
+        if ev.execute then note("ASSASSINATE", PAL.red) end
+    end
+    if rage > 0 then note("rage +" .. rage, PAL.red) end
+    if rot > 0 then note("rot " .. rot) end
+    local handY = top + STAT_HAND
+    local lines = flow(notes, x + 6, handY + 30, w - 12, false)
+    statBack(cx, top, w, handY - top + 30 + lines * gfx.font.small:getHeight() + 4)
+    gfx.print(heroName(), x + 6, top + 2, "small", PAL.cream, "left", w - 12)
+    local sh = math.floor((math.random() * 2 - 1) * 3 * hpShake + 0.5)
+    nerveBar(x, top, w, run.hp, run.hp, run.maxHp, block, sh)
+    if ev and phase ~= "intro" then
+        local pat = ev.pat.name .. (phase == "choose" and "" or " (played)")
+        handLine(x, handY, w, pat, "x" .. round2(ev.mult), ev.atkTotal, ev.defTotal,
+            function(side) return handTip(ev, side) end)
+    else
+        handLine(x, handY, w, "Your hand", nil, "-", "-")
+    end
+    flow(notes, x + 6, handY + 30, w - 12, true)
+end
+
+-- Under him: his nerve and guard, his dice if they live here, then his hand, tricks and conditions
+local function drawRivalStats()
+    local L = layout
+    local w, top, cx = L.stats.w, L.stats.y, L.foe.x
+    local x = cx - w / 2
+    local notes = {}
+    local function note(text, color) notes[#notes + 1] = {text, color} end
+    for _, sp in ipairs(hand and not hand.dizzy and hand.specials or {}) do
+        if sp.kind ~= "blank" then note(KINDS[sp.kind].name:upper(), KINDS[sp.kind].color) end
+    end
+    if rival.str > 0 then note("STR +" .. rival.str, PAL.red) end
+    if rival.patience > 0 then note("PATIENCE " .. rival.patience, PAL.gold) end
+    if rival.bones > 0 then note("BONES " .. rival.bones, PAL.grey) end
+    if rival.warcry > 0 then note("WAR CRY +" .. rival.warcry, PAL.red) end
+    if rival.carry > 0 then note("AURA " .. rival.carry, PAL.blue) end
+    if rival.poison > 0 then note("POISON " .. rival.poison, PAL.green) end
+    if rival.bleed > 0 then note("BLEED " .. rival.bleed, PAL.red) end
+    if rival.cursed then note("CURSED", PAL.purple) end
+    local handY = top + STAT_HAND + 24   -- below his dice
+    local lines = flow(notes, x + 6, handY + 30, w - 12, false)
+    statBack(cx, top, w, handY - top + 30 + lines * gfx.font.small:getHeight() + 4)
+    gfx.print(rival.def.name:upper(), x + 6, top + 2, "small", rival.def.boss and PAL.gold or PAL.cream, "left", w - 12)
+    nerveBar(x, top, w, rival.hp, rival.hpShown, rival.maxHp, rival.block)
+    if hand and hand.dizzy then
+        gfx.fancy("DIZZY!", cx, handY + 14, "big", PAL.gold, 1, math.sin(time * 3) * 0.1, 1, time)
+    elseif hand then
+        local p = hand.pattern
+        handLine(x, handY, w, p.name, p.mult > 1 and ("x" .. p.mult) or nil, rivalAttack(), hand.def,
+            function(side) return side ~= "mult" and rivalTip(side) or nil end)
+    else
+        handLine(x, handY, w, "His hand", nil, "-", "-")
+    end
+    flow(notes, x + 6, handY + 30, w - 12, true)
+end
+
+-- His dice, in his panel
+local function drawRivalDice()
+    local pips = pipsOf(theirs)
+    for i, d in ipairs(theirs) do
+        local face = faceOf(d)
+        local rot = d.rot + (d.rolling > 0 and 0 or math.sin(time * 2 + d.wob) * 0.03)
+        if i <= 3 and pips[i] == "wild" and d.rolling <= 0 then wildGlow(d.x, dieY(d), RIVAL_SIZE, d.sc) end
+        gfx.die(face, d.x, dieY(d), RIVAL_SIZE, rot, d.sc, {body = d.body, dim = hand and hand.dizzy,
+            outline = hand and hand.sig and PAL.gold})
+        if phase ~= "intro" and overDie(d, scene.mx, scene.my, RIVAL_SIZE) then ui.tipFace(face) end
+    end
+end
+
 local function drawMyDice()
     local pips = pipsOf(mine)
     for i, d in ipairs(mine) do
@@ -2178,113 +2327,101 @@ local function drawMyDice()
         if wild then wildGlow(d.x, y, DIE_SIZE, d.sc) end
         gfx.die(face, d.x, y, DIE_SIZE, rot, d.sc, {body = d.body, outline = d.held and PAL.gold or (wild and KINDS.wild.color),
             locked = d.locked, dim = d.sanded or (phase == "resolve" and face.kind == "blank")})
+        local ly = y + DIE_SIZE / 2 + 1
         if wild and not d.held and not d.fixed and not d.sanded then
-            gfx.print("WILD", d.x, y + 23, "small", KINDS.wild.color, "center", 60)
+            gfx.print("WILD", d.x, ly, "small", KINDS.wild.color, "center", 60)
         end
-        if d.held then gfx.print("HELD", d.x, y + 23, "small", PAL.gold, "center", 60) end
-        if d.sanded then gfx.print("SANDED", d.x, y + 23, "small", PAL.gold, "center", 60) end
-        if d.fixed then gfx.print(d.fixed, d.x, y + 23, "small", PAL.gold, "center", 60) end
+        if d.held then gfx.print("HELD", d.x, ly, "small", PAL.gold, "center", 60) end
+        if d.sanded then gfx.print("SANDED", d.x, ly, "small", PAL.gold, "center", 60) end
+        if d.fixed then gfx.print(d.fixed, d.x, ly, "small", PAL.gold, "center", 60) end
         if phase ~= "intro" and d.rolling <= 0 and overDie(d, scene.mx, scene.my, DIE_SIZE) then ui.tipFace(face) end
     end
 end
 
-local function drawSidebar()
-    local x, w = ui.SB.x, ui.SB.w
-    local cx = x + w / 2
-    ui.sidebar(run.venue(), "TURN " .. math.max(1, turn), rival.def.boss and {0.15, 0.40, 0.25} or nil, hpShake)
-
-    gfx.panel(x + 6, 80, 64, 24, PAL.panelHi, 4)
-    gfx.icon("shield", x + 20, 92, 14, PAL.blue)
-    gfx.print(block, x + 46, 85, "med", PAL.cream, "center", 40)
-    gfx.panel(x + 74, 80, 64, 24, PAL.panelHi, 4)
-    gfx.icon("coin", x + 88, 92, 14, PAL.gold)
-    gfx.print(run.gold, x + 114, 85, "med", PAL.cream, "center", 40)
-
-    gfx.print(rot > 0 and ("ROT " .. rot) or "REROLLS", x + 10, 112, "small", rot > 0 and PAL.green or PAL.grey)
-    for i = 1, rerolls do
-        lg.setColor(PAL.red)
-        lg.circle("fill", x + w - 16 - (i - 1) * 14, 118, 5)
-    end
-
-    -- attack and defence counted in their boxes, multiplied by the gold box
+-- Centre stage: your hand counting up as it lands, or the warning that his signature is coming
+local function drawScore()
     local s = score
-    gfx.panel(x + 6, 132, w - 12, 72, {0.08, 0.07, 0.09}, 5)
-    gfx.print(s and s.label or "", cx, 137, "small", PAL.gold, "center", w)
-    gfx.panel(x + 11, 152, 42, 28, PAL.red, 4)
-    gfx.panel(x + 51, 152, 42, 28, {0.85, 0.62, 0.15}, 4)
-    gfx.panel(x + 91, 152, 42, 28, PAL.blue, 4)
-    gfx.fancy(s and s.atk or 0, x + 32, 165, "big", PAL.cream, 1 + (s and s.atkPop or 0) * 0.5)
-    gfx.fancy("x" .. (s and s.mult or 0), x + 72, 165, "big", PAL.cream, 1 + (s and s.multPop or 0) * 0.5)
-    gfx.fancy(s and s.def or 0, x + 112, 165, "big", PAL.cream, 1 + (s and s.defPop or 0) * 0.5)
-    gfx.print("ATK", x + 32, 186, "small", PAL.grey, "center", 40)
-    gfx.print("MULT", x + 72, 186, "small", PAL.grey, "center", 40)
-    gfx.print("DEF", x + 112, 186, "small", PAL.grey, "center", 40)
+    if s then
+        local x = SCORE_X - 66
+        gfx.panel(x - 4, SCORE_Y - 4, 140, 52, {0.08, 0.07, 0.09, 0.85}, 6)
+        gfx.print(s.label, SCORE_X, SCORE_Y - 1, "small", PAL.gold, "center", 140)
+        gfx.panel(x, SCORE_Y + 12, 42, 28, PAL.red, 4)
+        gfx.panel(x + 45, SCORE_Y + 12, 42, 28, {0.85, 0.62, 0.15}, 4)
+        gfx.panel(x + 90, SCORE_Y + 12, 42, 28, PAL.blue, 4)
+        gfx.fancy(s.atk, x + 21, SCORE_Y + 26, "big", PAL.cream, 1 + s.atkPop * 0.5)
+        gfx.fancy("x" .. s.mult, x + 66, SCORE_Y + 26, "big", PAL.cream, 1 + s.multPop * 0.5)
+        gfx.fancy(s.def, x + 111, SCORE_Y + 26, "big", PAL.cream, 1 + s.defPop * 0.5)
+        if lastEv then
+            if hovering(x, SCORE_Y + 12, 42, 28) then ui.tip = handTip(lastEv, "atk")
+            elseif hovering(x + 45, SCORE_Y + 12, 42, 28) then ui.tip = handTip(lastEv, "mult")
+            elseif hovering(x + 90, SCORE_Y + 12, 42, 28) then ui.tip = handTip(lastEv, "def") end
+        end
+        return
+    end
+    if isTell() and turn > 0 and phase ~= "won" and phase ~= "lost" and phase ~= "intro" and not rival.dizzy then
+        local a = 0.65 + 0.35 * math.sin(time * 6)
+        gfx.panel(SCORE_X - 85, SCORE_Y, 170, 34, {0.45 * a, 0.30 * a, 0.05, 0.92}, 5)
+        gfx.print("SIGNATURE NEXT TURN", SCORE_X, SCORE_Y + 4, "small", PAL.gold, "center", 170)
+        gfx.print("Hit " .. rival.stagger .. "+ to stagger!", SCORE_X, SCORE_Y + 17, "small", PAL.cream, "center", 170)
+    end
+end
 
-    -- hover the boxes (your hand as it lands, or the one you're choosing) or the preview for the math
-    local shown = phase == "choose" and evaluate(true) or lastEv
-    if shown and phase ~= "intro" then
-        if hovering(x + 11, 152, 40, 28) or (phase == "choose" and hovering(x + 8, 236, 52, 18)) then
-            ui.tip = handTip(shown, "atk")
-        elseif hovering(x + 51, 152, 40, 28) or (phase == "choose" and hovering(x + 8, 220, w - 16, 16)) then
-            ui.tip = handTip(shown, "mult")
-        elseif hovering(x + 91, 152, 40, 28) or (phase == "choose" and hovering(x + 62, 236, 60, 18)) then
-            ui.tip = handTip(shown, "def")
+-- The sidebar: where you are and the rule there, your gold and glory, your relics, and help
+local function drawSidebar()
+    local L = layout
+    local x, w = 6, L.sbW - 6
+    local cx = x + w / 2
+    gfx.panel(x, 6, w, 348, PAL.panel)
+    gfx.panel(x + 5, 11, w - 10, 34, rival.def.boss and {0.15, 0.40, 0.25} or {0.45, 0.25, 0.12}, 5)
+    -- one line each, shrunk to fit a narrow sidebar
+    local function fit(text, y, font, color)
+        local s = math.min(1, (w - 14) / gfx.font[font]:getWidth(text))
+        gfx.fancy(text, cx, y, font, color, s)
+    end
+    local venue = run.venue()
+    fit(venue, 21, gfx.font.med:getWidth(venue) > w - 14 and "small" or "med", PAL.cream)
+    gfx.print("TURN " .. math.max(1, turn), cx, 30, "small", PAL.cream, "center", w)
+    if loc then
+        local box = {x = x + 5, y = 50, w = w - 10, h = 20}
+        gfx.panel(box.x, box.y, box.w, box.h, {0.08, 0.07, 0.09}, 4)
+        fit(loc.rule:upper(), 60, "small", PAL.gold)
+        if gfx.inside(box, scene.mx, scene.my) then
+            ui.tip = {title = loc.name:upper() .. ": " .. loc.rule:upper(), desc = loc.desc, color = PAL.gold}
         end
     end
-    if phase == "choose" then
-        local ev = shown
-        gfx.print("THIS HAND", x + 10, 210, "small", PAL.grey)
-        gfx.print(ev.pat.name, x + 10, 222, "med", ev.mult > 1 and PAL.gold or PAL.cream)
-        gfx.print("x" .. ev.mult, x + w - 10, 222, "med", PAL.gold, "right", 40)
-        gfx.icon("sword", x + 16, 245, 12, PAL.red)
-        gfx.print(ev.atkTotal, x + 26, 239, "med", PAL.red)
-        gfx.icon("shield", x + 66, 245, 12, PAL.blue)
-        gfx.print(ev.defTotal, x + 76, 239, "med", PAL.blue)
-        local extras = {}
-        if ev.gold > 0 then extras[#extras + 1] = "+" .. ev.gold .. "g" end
-        if ev.heal > 0 then extras[#extras + 1] = "+" .. ev.heal .. " nerve" end
-        if ev.shatter then extras[#extras + 1] = "shatter" end
-        if ev.poison > 0 then extras[#extras + 1] = "+" .. ev.poison .. " poison" end
-        if ev.bleed > 0 then extras[#extras + 1] = "+" .. ev.bleed .. " bleed" end
-        if ev.thorns then extras[#extras + 1] = "thorns " .. ev.thorns end
-        if ev.vamp then extras[#extras + 1] = "vampiric" end
-        if ev.bank then extras[#extras + 1] = "bank " .. math.floor(ev.defTotal / 2) end
-        if growth + ev.grow > 0 then extras[#extras + 1] = "growth +" .. (growth + ev.grow) end
-        if ev.sunder > 0 then extras[#extras + 1] = "sunder " .. ev.sunder end
-        if ev.weaken > 0 then extras[#extras + 1] = "weaken " .. ev.weaken end
-        if ev.pick > 0 then extras[#extras + 1] = "pickpocket" end
-        if ev.bolt > 0 then extras[#extras + 1] = "bolt " .. ev.bolt end
-        if ev.envenom then extras[#extras + 1] = "envenom" end
-        if rage > 0 then extras[#extras + 1] = "rage +" .. rage end
-        if ev.execute then extras[#extras + 1] = "ASSASSINATE" end
-        gfx.print(table.concat(extras, " "), x + 10, 256, "small", PAL.green, "left", w - 16)
+    -- the words drop off in a narrow sidebar; the coin and crown say what the numbers are
+    local wide = w >= 110
+    gfx.icon("coin", x + 16, GOLD_POS.y, 14, PAL.gold)
+    gfx.print(run.gold .. (wide and " gold" or ""), x + 28, GOLD_POS.y - 7, "med", PAL.cream, "left", w - 30)
+    if run.mode == "campaign" then
+        gfx.icon("crown", x + 16, GOLD_POS.y + 18, 14, PAL.gold)
+        gfx.print(require("campaign").state().glory .. (wide and " glory" or ""), x + 28, GOLD_POS.y + 11, "med",
+            PAL.cream, "left", w - 30)
     end
-
-    if isTell() and turn > 0 and phase ~= "won" and phase ~= "lost" and not rival.dizzy then
-        local a = 0.65 + 0.35 * math.sin(time * 6)
-        gfx.panel(x + 6, 272, w - 12, 34, {0.45 * a, 0.30 * a, 0.05}, 5)
-        gfx.print("SIGNATURE NEXT TURN", cx, 276, "small", PAL.gold, "center", w)
-        gfx.print("Hit " .. rival.stagger .. "+ to stagger!", cx, 289, "small", PAL.cream, "center", w)
+    gfx.print("RELICS " .. #run.charms .. "/" .. data.maxCharms(run), x + 8, SB_RELIC_Y - 6, "small", PAL.grey)
+    for i, id in ipairs(run.charms) do
+        local px, py = charmPos(i)
+        local a = charmAnim[i] or 0
+        local hot = math.abs(scene.mx - px) < ui.CHARM_W / 2 and math.abs(scene.my - py) < ui.CHARM_H / 2
+        ui.charmCard(id, px, py - a * 6 - (hot and 2 or 0), 1 + a * 0.3, math.sin(a * 20) * a * 0.3)
+        if hot then ui.tipCharm(id) end
     end
-    local hot = scene.mx > x and scene.mx < x + w and math.abs(scene.my - 314) < 9
-    gfx.print("HOVER: PATTERNS", cx, 308, "small", hot and PAL.gold or PAL.cream, "center", w)
-    gfx.print("Click dice to hold", cx, 324, "small", PAL.grey, "center", w)
-    gfx.print("TAB: kit and dice pool", cx, 336, "small", PAL.grey, "center", w)
+    local hot = scene.mx > x and scene.mx < x + w and math.abs(scene.my - 304) < 8
+    fit("HOVER: PATTERNS", 304, "small", hot and PAL.gold or PAL.cream)
+    fit("Click dice to hold", 320, "small", PAL.grey)
+    fit("TAB: your kit", 334, "small", PAL.grey)
     if hot then ui.tip = {title = "PATTERNS", desc = data.PATTERN_HELP, color = PAL.gold} end
 end
 
--- The location's rule in the corner of the table; hover for the details
-local function drawLocation()
-    if not loc then return end
-    local box = {x = 532, y = 318, w = 96, h = 22}
-    gfx.panel(box.x, box.y, box.w, box.h, {0.08, 0.07, 0.09, 0.85}, 4)
-    gfx.print(loc.rule:upper(), box.x + box.w / 2, box.y + 5, "small", PAL.gold, "center", box.w)
-    if gfx.inside(box, scene.mx, scene.my) then
-        ui.tip = {title = loc.name:upper() .. ": " .. loc.rule:upper(), desc = loc.desc, color = PAL.gold}
-    end
+-- His speech bubble, beside his head, pointing at him
+local function rivalBubble(text, t)
+    local L = layout
+    local w = 150
+    local bx = math.max(FIELD_L + 4, RIVAL_X - L.foe.h * 0.3 - w - 6)
+    ui.bubble(text, bx, math.max(8, L.foe.feet - L.foe.h + 4), w, t, true)
 end
 
--- The fight-card intro: the rival slides in on a banner across the table
+-- The fight-card intro: the rival slides in on a banner across the field
 local function drawIntro()
     local a = math.min(1, introT * 3)
     lg.setColor(0, 0, 0, 0.6 * a)
@@ -2292,9 +2429,9 @@ local function drawIntro()
     local s = fx.EASE.back(math.min(1, introT * 2))
     local slide = (1 - fx.EASE.out(math.min(1, introT * 2.5))) * 300
     lg.setColor(PAL.red)
-    lg.rectangle("fill", 156 + slide, 198, 478, 66)
+    lg.rectangle("fill", FIELD_L + slide, 198, FIELD_W, 66)
     lg.setColor(PAL.dark)
-    lg.rectangle("fill", 156 + slide, 202, 478, 58)
+    lg.rectangle("fill", FIELD_L + slide, 202, FIELD_W, 58)
     gfx.fancy("VS", FIELD_X - 150, 120, "huge", PAL.red, s * 1.4, -0.15, 2, time)
     gfx.fancy(rival.def.name:upper(), FIELD_X + slide, 222, "big", PAL.gold, s * 1.2, math.sin(time) * 0.02, 1, time)
     gfx.print(rival.def.title, FIELD_X + slide, 240, "med", PAL.cream, "center", 300)
@@ -2304,40 +2441,39 @@ local function drawIntro()
         gfx.print(loc.name:upper() .. ": " .. loc.rule:upper(), FIELD_X + slide, 266, "med", PAL.gold, "center", 440)
         gfx.print(loc.desc, FIELD_X + slide, 281, "small", PAL.cream, "center", 440)
     end
-    ui.bubble(rival.def.quote, FIELD_X + 70, 64, 160, introT)
+    rivalBubble(rival.def.quote, introT)
     if introT > 0.8 then
-        gfx.print("click to take a seat", FIELD_X, 296, "med", {1, 1, 1, 0.6 + 0.4 * math.sin(time * 4)},
+        gfx.print("click to take a seat", FIELD_X, 300, "med", {1, 1, 1, 0.6 + 0.4 * math.sin(time * 4)},
             "center", 300)
     end
 end
 
 function duel.draw()
     ui.tip = nil
-    drawSidebar()
-    drawRival()
-    drawTable()
-    drawRivalStatus()
-    drawRivalHand()
-    gfx.print("YOUR HAND", FIELD_X, 228, "small", {1, 1, 1, 0.35}, "center", 100)
+    drawFighters()
+    drawTray()
+    drawMyStats()
+    drawRivalStats()
+    drawRivalDice()
+    drawScore()
     drawMyDice()
-    ui.charmRow(CHARM_X, CHARM_Y, charmAnim)
-    drawLocation()
+    drawSidebar()
 
     if phase == "choose" or phase == "rolling" then
-        buttons.reroll.label = "REROLL"
+        buttons.reroll.label = "REROLL " .. rerolls
         buttons.reroll.enabled = canReroll()
         buttons.fight.enabled = phase == "choose"
         gfx.button(buttons.reroll, scene.mx, scene.my)
         gfx.button(buttons.fight, scene.mx, scene.my)
     end
     drawAbility()
-    if bubble and phase ~= "intro" then ui.bubble(bubble.text, FIELD_X + 70, 50, 160, bubble.t) end
+    if bubble and phase ~= "intro" then rivalBubble(bubble.text, bubble.t) end
 
     if phase == "intro" then
         drawIntro()
     elseif banner then
         lg.setColor(0, 0, 0, 0.55 * math.min(1, banner.t * 3))
-        lg.rectangle("fill", 156, 0, gfx.W - 156, gfx.H)
+        lg.rectangle("fill", FIELD_L, 0, gfx.W - FIELD_L, gfx.H)
         local s = fx.EASE.back(math.min(1, banner.t * 2.5))
         gfx.fancy(banner.title, FIELD_X, 135, "huge", banner.color, s, math.sin(time * 1.5) * 0.04, 2, time)
         gfx.print(banner.sub, FIELD_X, 162, "med", PAL.cream, "center", 400)
