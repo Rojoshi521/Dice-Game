@@ -1130,9 +1130,11 @@ data.RIVALS = {
         signature = {f("sword", 5), f("shield", 1), f("doom", 5)},
     },
     redgrave = {
-        name = "Captain Redgrave", title = "Terror of the Docks", hp = 48, gold = 18, elite = true,
+        name = "Captain Redgrave", title = "Terror of the Docks", hp = 50, gold = 20, elite = true,
         dieColor = {0.12, 0.12, 0.14},
         quote = "HAR! Roll yer bones, landlubber, and I'll take the rest o' ye!",
+        intro = "Down at the city docks, a black-sailed ship is tied up where no ship should be. Its captain "
+            .. "has set a dice table on the gangplank, and the harbour watch is pretending not to see it.",
         tell = "Redgrave laughs and slams the table!", sigLine = "BROADSIDE! FIRE!",
         hitLines = {"Blast ye!", "A scratch!", "HAR, is that all?"}, koLine = "Abandon... ship...",
         every = 3, stagger = 12,
@@ -1140,6 +1142,7 @@ data.RIVALS = {
             {f("sword", 3), f("sword", 4), f("sword", 4), f("sword", 5), f("sword", 5), f("sword", 6)},
             {f("shield", 1), f("shield", 1), f("shield", 2), f("blank"), f("blank"), f("blank")},
             {f("plunder", 2), f("plunder", 3), f("rage", 1), f("rage", 2), f("hiccup", 4), f("blank")},
+            {f("brace"), f("plunder", 2), f("hiccup", 2), f("blank"), f("blank"), f("rage", 1)},
         },
         signature = {f("sword", 6), f("shield", 1), f("broadside", 6)},
     },
@@ -1222,9 +1225,11 @@ data.RIVALS = {
         signature = {f("sword", 5), f("blank"), f("finale", 5)},
     },
     mortis = {
-        name = "Mortimer Gloam", title = "The Necromancer", hp = 38, gold = 18, elite = true,
+        name = "Mortimer Gloam", title = "The Necromancer", hp = 46, gold = 20, elite = true,
         dieColor = {0.20, 0.30, 0.22},
         quote = "Take your time. Please. Every turn you linger is a gift to me.",
+        intro = "In the oldest corner of the graveyard, a thin man in a moth-eaten coat sits at a table made "
+            .. "from a coffin lid. Around him, the graves are open, and the dead are waiting for the game to start.",
         tell = "The candles gutter. Something stirs below the table...", sigLine = "Rise... and HARVEST!",
         hitLines = {"Pain is a debt...", "I'll collect that.", "Heh heh..."}, koLine = "I'll... be back...",
         every = 4, stagger = 10,
@@ -1232,6 +1237,7 @@ data.RIVALS = {
             {f("sword", 1), f("sword", 1), f("sword", 2), f("sword", 2), f("sword", 3), f("blank")},
             {f("shield", 1), f("shield", 2), f("shield", 2), f("shield", 3), f("shield", 3), f("shield", 4)},
             {f("rot", 1), f("bonewall", 1), f("bonewall", 2), f("debt", 2), f("blank"), f("rot", 1)},
+            {f("debt"), f("rot", 1), f("brace"), f("bonewall", 1), f("blank"), f("blank")},
         },
         signature = {f("sword", 2), f("shield", 3), f("harvest", 2)},
     },
@@ -1675,7 +1681,9 @@ data.NPCS = {
     elf = {name = "Kael", title = "Scarred Elf Scout", art = "npc_elf",
         greet = "I've walked this place for years. I know what's ahead. I could tell you... and soften up whoever's next."},
 }
-data.NPC_ORDER = {"merchant", "medic", "sage", "monk", "gnome", "fairy", "agent", "elf"}
+data.NPCS.bookmaker = {name = "The Bookmaker", title = "Keeper of the Odds", art = "bookmaker",
+    greet = "Every roll in these lands pays me a little something. Care to put a little something on yourself?"}
+data.NPC_ORDER = {"merchant", "medic", "sage", "monk", "gnome", "fairy", "agent", "elf", "bookmaker"}
 
 -- The campaign hero: a peasant of Millbrook with poor dice who grows through the village's upgrades.
 -- Their modifier die is replaced by their class's.

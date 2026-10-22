@@ -12,7 +12,8 @@ local PAL = gfx.PAL
 local ui = {SB = {x = 6, y = 6, w = 144, h = 348}, tip = nil}
 
 -- Panel, header box, nerve bar and gold; returns the y below them
-function ui.sidebar(title, sub, color, shake)
+-- noNerve: leave out the nerve bar (screens with no run, like the Lore Bible)
+function ui.sidebar(title, sub, color, shake, noNerve)
     local x, w = ui.SB.x, ui.SB.w
     local cx = x + w / 2
     gfx.panel(x, ui.SB.y, w, ui.SB.h, PAL.panel)
@@ -21,6 +22,7 @@ function ui.sidebar(title, sub, color, shake)
     local font = gfx.font.med:getWidth(title) > w - 16 and "small" or "med"
     gfx.print(title, cx, font == "med" and 16 or 18, font, PAL.cream, "center", w)
     gfx.print(sub, cx, 31, "small", PAL.cream, "center", w)
+    if noNerve then return 48 end
     local sh = math.floor((math.random() * 2 - 1) * 3 * (shake or 0) + 0.5)
     gfx.icon("heal", x + 16, 64, 14, PAL.red)
     gfx.bar(x + 28 + sh, 58, w - 38, 12, run.hp / run.maxHp, PAL.red, "NERVE " .. run.hp .. "/" .. run.maxHp)

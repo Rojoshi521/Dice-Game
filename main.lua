@@ -107,6 +107,7 @@ function love.load(args)
         if a == "--race" then race = args[i + 1] end
         if a == "--backstory" then backstory = args[i + 1] end
         if a == "--outlook" then OUTLOOK = args[i + 1] end   -- test runs: the hero's outlook
+        if a == "--tab" then LORE_TAB = tonumber(args[i + 1]) end   -- screenshots: the Lore Bible tab to open
         if a == "--encounter" then ENCOUNTER = args[i + 1] end   -- the encounter the roleplay scene opens with
         if a == "--weapon" then WEAPON = args[i + 1] end   -- also the only weapon autoplay is offered; "none" for bare hands
         if a == "--savefile" then SAVEFILE = args[i + 1] end   -- keeps parallel test runs' saves apart
@@ -204,7 +205,7 @@ function love.load(args)
             run.dice[#run.dice].faces = faces
         end
     end
-    require("title").autoMode = mode or "tavern"
+    require("title").autoMode = mode or "campaign"
     scene.go(start)
     for k = 1, 3 do bg[k] = {unpack(scene.bg[k])} end
 end
@@ -302,8 +303,14 @@ function love.mousepressed(x, y, button)
     elseif button == 1 and scene.current.mousepressed then scene.current.mousepressed(toCanvas(x, y)) end
 end
 
+function love.wheelmoved(_, y)
+    if not sheet.open and scene.current.wheelmoved then scene.current.wheelmoved(y) end
+end
+
 function love.keypressed(key)
-    if key == "escape" then
+    if key == "escape" and scene.current.back then
+        scene.current.back()   -- a scene that leads somewhere else first (the Lore Bible)
+    elseif key == "escape" then
         love.event.quit()
     elseif key == "f11" then
         love.window.setFullscreen(not love.window.getFullscreen())

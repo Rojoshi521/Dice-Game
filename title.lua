@@ -7,12 +7,12 @@ local scene = require("scene")
 
 local lg = love.graphics
 
-local title = {autoMode = "tavern"}   -- autoMode: which mode autoplay picks
+local title = {autoMode = "campaign"}   -- autoMode: which mode autoplay picks
 local time, buttons
 
 local MODES = {
-    {id = "tavern", label = "TAVERN RUN", blurb = "A random circuit of rivals. Beat the Bookmaker.", color = {0.62, 0.40, 0.14}},
     {id = "campaign", label = "CAMPAIGN", blurb = "Three acts across the wilds, and the powers that rule them.", color = {0.30, 0.22, 0.45}},
+    {id = "lore", label = "LORE BIBLE", blurb = "Every race, class, weapon, location, monster, die face and relic.", color = {0.55, 0.38, 0.10}},
 }
 local BUTTON_W, BUTTON_H, BUTTON_Y, BUTTON_GAP = 190, 30, 212, 40
 
@@ -56,6 +56,7 @@ end
 local function start(mode)
     sfx.play("roll")
     if mode == "campaign" then return require("campaign").begin() end
+    if mode == "lore" then return scene.go("lore") end
     run.new(mode)
     scene.go("outfit")
 end
@@ -67,7 +68,7 @@ function title.mousepressed(x, y)
 end
 
 function title.keypressed(key)
-    if key == "space" or key == "return" then start("tavern") end
+    if key == "space" or key == "return" then start("campaign") end
 end
 
 function title.auto() start(title.autoMode) end

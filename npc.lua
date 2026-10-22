@@ -265,6 +265,27 @@ local SERVICES = {
                 end},
         }
     end,
+    -- the Bookmaker takes your stake now and pays on your next win, if you won the way you bet
+    bookmaker = function()
+        local stake = 10 * (run.act or 1)
+        local function bet(pay, terms, wager, line)
+            return {label = function() return "BET " .. stake .. "g: " .. terms .. ", GET " .. pay end,
+                enabled = function() return not run.wager and run.gold >= stake end,
+                act = function()
+                    run.gold = run.gold - stake
+                    wager.pay = pay
+                    run.wager = wager
+                    sfx.play("coin")
+                    finish(line)
+                end}
+        end
+        return {
+            bet(stake * 3, "WIN IN 4 TURNS", {turns = 4},
+                "\"Four turns. Noted in the ledger. Don't make me wait.\""),
+            bet(stake * 2, "WIN ABOVE HALF NERVE", {half = true},
+                "\"Win it clean, and the house pays. Bleed, and the house keeps it. As always.\""),
+        }
+    end,
     elf = function()
         return {{label = function() return "LISTEN TO THE SCOUT" end, enabled = function() return true end,
             act = function()

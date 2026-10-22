@@ -12,7 +12,7 @@ local PAL = gfx.PAL
 
 local sheet = {open = false}
 
-local CLOSED_IN = {title = true, village = true}   -- no run to show yet
+local CLOSED_IN = {title = true, village = true, lore = true}   -- no run to show yet
 local PANEL = {x = 18, y = 14, w = 604, h = 332}
 local FACE, FACE_GAP = 26, 31
 

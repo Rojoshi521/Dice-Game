@@ -163,7 +163,7 @@ function run.new(mode)
     run.act = 1
     run.locIndex, run.location, run.lair, run.visited = 0, nil, nil, {}
     run.used = {}            -- rivals and strangers already met this run, so locations don't repeat them
-    run.scout, run.contract, run.weakenNext = nil, nil, nil
+    run.scout, run.contract, run.weakenNext, run.wager = nil, nil, nil, nil
     -- what the outfit screen grants before setting out; the campaign's come from Millbrook's upgrades,
     -- and race and class add to them
     run.perks = {relics = 1, upgrades = 1, rerolls = 0, draft = true, backstory = true, redraws = 0}

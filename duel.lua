@@ -837,6 +837,17 @@ local function win()
             lines[#lines + 1] = "-" .. fine .. " broken contract"
         end
     end
+    -- the Bookmaker's wager, staked up front: paid out only if you won the way you bet you would
+    local wager = run.wager
+    if wager then
+        run.wager = nil
+        if (not wager.turns or turn <= wager.turns) and (not wager.half or run.hp * 2 > run.maxHp) then
+            run.gold = run.gold + wager.pay
+            lines[#lines + 1] = "+" .. wager.pay .. " wager"
+        else
+            lines[#lines + 1] = "lost the wager"
+        end
+    end
     local boss = rival.def.boss
     local campaign = run.mode == "campaign"
     local last = not campaign or run.act >= #data.ACTS   -- the boss that ends the run

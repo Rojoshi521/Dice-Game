@@ -1,7 +1,7 @@
 -- Encounter stops (roleplay.lua): a situation and three ways to handle it. Every option is tagged with
 -- the outlooks (data.OUTLOOKS) it's true to, and every option gives its gain. True to your outlook, it
 -- also earns its favor for the rest of the location; otherwise it costs its drawback instead.
---   where: the locations it turns up in (nil: anywhere)
+--   where: the locations it turns up in (nil: anywhere); art and who: the character it's with, if any
 --   gain/cost: gold, heal, hurt, maxHp, relic, upgrade (face upgrades), weaken (your next rival starts
 --   at this share of its nerve)
 --   favor/grudge traits: read through data.trait while you're in the location (block, mult, atkFlat,
@@ -19,8 +19,8 @@ local E = {}
 ---------------------------------------------------------------------------
 -- City
 ---------------------------------------------------------------------------
-E.mayor = {where = {"city"}, title = "THE MAYOR'S DUE",
-    text = "In the market square, Mayor Grisby's guards are dragging an old farmer from his stall. \"Taxes,\" the "
+E.mayor = {where = {"city"}, title = "THE MAYOR'S DUE", art = "mayor", who = "Mayor Gorbin",
+    text = "In the market square, Mayor Gorbin's guards are dragging an old farmer from his stall. \"Taxes,\" the "
         .. "mayor sniffs, pocketing the man's last coins. The crowd watches, and says nothing.",
     opt("Stand up to the mayor", {"protective", "honorable", "rebellious"},
         "You step between the guards and the farmer. The crowd finds its courage behind you, and the mayor "
@@ -77,9 +77,9 @@ E.well = {where = {"village"}, title = "THE SICK WELL",
             cost = {grudge = {name = "The Mob's Ire", traits = {haggle = -2}}}}),
 }
 
-E.festival = {where = {"village"}, title = "HARVEST FESTIVAL",
-    text = "Lanterns, fiddles and a roasting pig: the village is throwing its harvest festival, and they've "
-        .. "pulled you in. There's a strongman contest, a kitchen short of hands, and a cider cellar left unlocked.",
+E.festival = {where = {"village"}, title = "HARVEST FESTIVAL", art = "jasper", who = "Jasper Jangles",
+    text = "Lanterns, fiddles and a roasting pig. Jasper Jangles the bard is hosting the harvest festival, and "
+        .. "he's spotted you. \"A HERO among us! Strongman contest? Kitchen duty? Or, ahem, the cellar's open...\"",
     opt("Win the strongman contest", {"proud", "honorable"},
         "You lift the anvil, the cart and the blacksmith. The prize purse is yours, and so is every cheer.",
         {gain = {gold = 12}, favor = {name = "Festival Champion", traits = {mult = 1}}, cost = {hurt = 6}}),
@@ -112,9 +112,9 @@ E.wolves = {where = {"grassland"}, title = "WOLVES AT THE FOLD",
             cost = {grudge = {name = "Wolves on Your Trail", traits = {rivalAtk = 2}}}}),
 }
 
-E.knight = {where = {"grassland"}, title = "THE FALLEN KNIGHT",
-    text = "A knight lies in the tall grass, his armour split, his breath short. He grips your sleeve. \"My "
-        .. "oath... a letter for my lady... please.\"",
+E.knight = {where = {"grassland"}, title = "THE FALLEN KNIGHT", art = "aldric", who = "Sir Aldric",
+    text = "Sir Aldric, the Iron Knight, lies in the tall grass, his armour split and his breath short. He grips "
+        .. "your sleeve. \"My oath... a letter for my lady... please.\"",
     opt("Swear to deliver his letter", {"honorable", "devout", "merciful"},
         "You swear it. He smiles, and is gone. The letter is light; the promise isn't. His lady's steward "
             .. "pays the messenger well.",
@@ -287,9 +287,9 @@ E.wagon = {where = {"trail"}, title = "THE BROKEN WAGON",
         {gain = {gold = 14}, favor = {name = "Bandit-Bane", traits = {atkFlat = 2}}, cost = {hurt = 8}}),
 }
 
-E.pilgrims = {where = {"trail"}, title = "THE PILGRIMS",
-    text = "A column of barefoot pilgrims sings its way down the road toward a distant shrine. Their leader "
-        .. "invites you to walk with them, and mentions the shrine's famous relic.",
+E.pilgrims = {where = {"trail"}, title = "THE PILGRIMS", art = "seraphine", who = "Jame Seraphs",
+    text = "A column of barefoot pilgrims sings its way down the road, led by Jame Seraphs, a paladin in shining "
+        .. "plate. She invites you to walk with them, and mentions the shrine's famous relic.",
     opt("Walk and pray with them", {"devout", "merciful"},
         "The miles go by in song. You arrive rested in a way you'd forgotten was possible.",
         {gain = {heal = 12}, favor = {name = "Pilgrim's Peace", traits = {winHeal = 4}}, cost = {gold = -6}}),
@@ -338,19 +338,19 @@ E.dragonling = {where = {"cave"}, title = "THE DRAGONLING",
 ---------------------------------------------------------------------------
 -- Dungeon
 ---------------------------------------------------------------------------
-E.prisoner = {where = {"dungeon"}, title = "THE PRISONER",
-    text = "A prisoner rattles their chains as you pass. \"I'm innocent! Please! The key's on the jailer's "
-        .. "belt, and he's asleep.\"",
-    opt("Free them", {"merciful", "rebellious", "protective"},
-        "The prisoner slips away into the dark, but not before telling you where the next guard keeps "
+E.prisoner = {where = {"dungeon"}, title = "THE PRISONER", art = "fennick", who = "Fennick Slyhand",
+    text = "Fennick Slyhand rattles his chains as you pass. \"Me? A thief? Innocent, friend, I swear it! The key's "
+        .. "on the jailer's belt, and he's asleep.\"",
+    opt("Free him", {"merciful", "rebellious", "protective"},
+        "Fennick slips away into the dark, but not before telling you where the next guard keeps "
             .. "their weak side.",
         {gain = {weaken = 0.8}, favor = {name = "An Escaped Ally", traits = {atkFlat = 2}},
             cost = {grudge = {name = "Wanted", traits = {rivalAtk = 2}}}}),
-    opt("Leave them to justice", {"honorable", "devout"},
+    opt("Leave him to justice", {"honorable", "devout"},
         "The jailer wakes, notes your honesty, and pays you a finder's fee for reporting the loose bars.",
         {gain = {gold = 10}, favor = {name = "Lawful Passage", traits = {haggle = 2}}, cost = {maxHp = -3}}),
-    opt("Ask what they'll pay", {"greedy", "cunning"},
-        "Freedom is expensive. The prisoner's hidden stash covers it, and then some.",
+    opt("Ask what he'll pay", {"greedy", "cunning"},
+        "Freedom is expensive. Fennick's hidden stash covers it, and then some.",
         {gain = {gold = 20}, favor = {name = "The Secret Stash", traits = {hitGold = 2}}, cost = {hurt = 6}}),
 }
 
@@ -489,9 +489,9 @@ E.avalanche = {where = {"mountain"}, title = "THE HANGING SNOW",
             cost = {grudge = {name = "Looter", traits = {haggle = -2}}}}),
 }
 
-E.monastery = {where = {"mountain"}, title = "THE MONASTERY",
-    text = "Monks in orange robes invite you into their mountain monastery. They offer a trial of silence. "
-        .. "Their reliquary glitters through an open door.",
+E.monastery = {where = {"mountain"}, title = "THE MONASTERY", art = "tobias", who = "Brother Tobias",
+    text = "Brother Tobias, the patient monk, invites you into his mountain monastery and offers you a trial "
+        .. "of silence. Behind him, the reliquary glitters through an open door.",
     opt("Take the trial", {"devout", "honorable", "proud"},
         "Three days without a word. You come out with a stillness in your hands your dice can feel.",
         {gain = {upgrade = 1}, favor = {name = "Inner Calm", traits = {turnRerolls = 1}}, cost = {maxHp = -3}}),
@@ -507,11 +507,11 @@ E.monastery = {where = {"mountain"}, title = "THE MONASTERY",
 ---------------------------------------------------------------------------
 -- Anywhere
 ---------------------------------------------------------------------------
-E.duelist = {title = "THE CHALLENGE",
-    text = "A swaggering duelist blocks the path and slaps a glove across your face. \"They say you're good "
-        .. "with dice. I say you're a fraud. Prove me wrong.\"",
+E.duelist = {title = "THE CHALLENGE", art = "brakka", who = "Brakka Bonesnap",
+    text = "Brakka Bonesnap blocks the path and thumps his chest. \"BRAKKA HEAR YOU GOOD WITH DICE! BRAKKA "
+        .. "SAY YOU TINY FRAUD! YOU PROVE BRAKKA WRONG!\"",
     opt("Accept and play fair", {"honorable", "proud"},
-        "A long, hard game. You win it clean, and the duelist pays up with a bow.",
+        "A long, hard game. You win it clean, and Brakka pays up with a bear hug that cracks a rib.",
         {gain = {gold = 12}, favor = {name = "Duelist's Respect", traits = {mult = 1}}, cost = {hurt = 8}}),
     opt("Accept, and cheat", {"cunning", "greedy"},
         "Loaded dice, a mirror up your sleeve. You win by a mile. Word gets around.",
@@ -551,11 +551,72 @@ E.recruiter = {title = "THE RECRUITER",
         {gain = {gold = 16}, favor = {name = "Double Agent", traits = {hitGold = 2}}, cost = {hurt = 6}}),
 }
 
+E.barfly = {title = "THE BARFLY", art = "pip", who = "Old Pip",
+    text = "Behind a roadside inn, two thugs have Old Pip pinned against the wall. \"*hic* I'll pay! I'll pay "
+        .. "next week!\" One of them cracks his knuckles. Pip spots you. \"Friend! Old friend! Tell 'em!\"",
+    opt("Pay his debt", {"merciful", "protective"},
+        "The thugs count your coins and leave. Pip presses his lucky die into your hand. \"Never lost a roll "
+            .. "with it. Well. Never lost ALL the rolls.\"",
+        {gain = {upgrade = 1}, favor = {name = "Old Pip's Luck", traits = {luckyBlank = 1}}, cost = {gold = -12}}),
+    opt("Fight off the thugs", {"protective", "proud", "rebellious"},
+        "Two thugs, one of you, and a barrel of ale that gets in everyone's way. You walk off with their purses.",
+        {gain = {gold = 10}, favor = {name = "Barroom Brawler", traits = {atkFlat = 2}}, cost = {hurt = 8}}),
+    opt("Help them shake him down", {"greedy", "ruthless", "cunning"},
+        "You know exactly which boot Pip hides his money in. The thugs give you a share, and Pip stops waving.",
+        {gain = {gold = 18}, favor = {name = "Friends in Low Places", traits = {hitGold = 2}},
+            cost = {grudge = {name = "Bad Reputation", traits = {haggle = -2}}}}),
+}
+
+E.cardsharp = {where = {"city", "village", "trail"}, title = "THE CARD SHARP", art = "marla", who = "Marla Quickfingers",
+    text = "Marla Quickfingers is running a shell game on an upturned barrel, and a line of farmers is losing "
+        .. "their harvest money one copper at a time. She catches your eye and winks.",
+    opt("Expose her trick", {"honorable", "protective"},
+        "You flip the third shell before she can palm the pea. The farmers get their coin back, and give you some.",
+        {gain = {gold = 12}, favor = {name = "Sharp Eyes", traits = {turnRerolls = 1}},
+            cost = {grudge = {name = "Marla's Grudge", traits = {rivalAtk = 2}}}}),
+    opt("Ask her to teach you", {"curious", "cunning"},
+        "\"Lessons cost, darling.\" They do. But your fingers have never been quicker.",
+        {gain = {upgrade = 1}, favor = {name = "Sleight of Hand", traits = {luckyBlank = 1}}, cost = {gold = -10}}),
+    opt("Go into business together", {"greedy", "rebellious"},
+        "You play the lucky stranger who keeps winning. The farmers queue up to beat your luck. They can't.",
+        {gain = {gold = 20}, favor = {name = "Marla's Cut", traits = {winGold = 3}}, cost = {maxHp = -3}}),
+}
+
+E.fortune = {title = "THE FORTUNE TELLER", art = "vex", who = "Madame Vex",
+    text = "A purple tent stands where no tent stood a moment ago. Inside, Madame Vex turns over a card before "
+        .. "you sit down. \"Ah. I have been expecting you. Shall I tell you how your next fight ends?\"",
+    opt("Let her read your fate", {"curious", "devout"},
+        "She tells you every move your next rival will make. You also see, briefly, how you die. Not today.",
+        {gain = {weaken = 0.8}, favor = {name = "Foretold", traits = {mult = 1}}, cost = {maxHp = -3}}),
+    opt("Make your own fate", {"rebellious", "proud"},
+        "You sweep her cards off the table. \"Nobody tells me how it ends.\" She smiles as if she knew that too.",
+        {gain = {heal = 10}, favor = {name = "Fate-Defier", traits = {block = 3}},
+            cost = {grudge = {name = "Vex's Hex", traits = {rivalAtk = 2}}}}),
+    opt("Pay her to curse your enemy", {"ruthless", "cunning"},
+        "A pinch of ash, a muttered name, a coin into the candle. Somewhere ahead, your next rival shivers.",
+        {gain = {weaken = 0.7}, favor = {name = "Hexed Path", traits = {rebuke = 3}}, cost = {gold = -12}}),
+}
+
+E.experiment = {title = "THE ARCHMAGE'S EXPERIMENT", art = "quill", who = "Archmage Quill",
+    text = "Archmage Quill has chalked a glowing circle in the road and is waving a smoking wand. \"You! Yes, you! "
+        .. "I need a volunteer with dice. Nothing can go wrong. Probably. Almost certainly.\"",
+    opt("Volunteer", {"curious", "proud"},
+        "There's a flash, a bang and a smell like burnt hair. Your dice glow faintly, and so do your eyebrows.",
+        {gain = {upgrade = 2}, favor = {name = "Arcane Spark", traits = {mult = 1}}, cost = {hurt = 10}}),
+    opt("Talk him out of it", {"honorable", "merciful", "protective"},
+        "You point out the three misspelled runes. Quill turns pale, thanks you, and pays you for the consultation.",
+        {gain = {gold = 10}, favor = {name = "Quill's Ward", traits = {block = 3}}, cost = {hurt = 5}}),
+    opt("Steal his spellbook", {"greedy", "cunning", "rebellious"},
+        "While he lectures the sky, you lift the book from his satchel. Pressed between its pages is a trinket.",
+        {gain = {relic = 1}, favor = {name = "Stolen Pages", traits = {hitGold = 2}},
+            cost = {grudge = {name = "The Wizard's Wrath", traits = {rivalAtk = 3}}}}),
+}
+
 -- Fixed order, so the same seed always meets the same encounters
 local ORDER = {"mayor", "urchin", "well", "festival", "wolves", "knight", "toll", "prophet", "poacher", "fairyring",
     "drowning", "bogwitch", "water", "tomb", "wagon", "pilgrims", "miners", "dragonling", "prisoner", "adventurer",
     "statue", "banner", "digger", "widow", "frozen", "iceshrine", "avalanche", "monastery", "duelist", "orphans",
-    "recruiter"}
+    "recruiter", "barfly", "cardsharp", "fortune", "experiment"}
 
 -- Options are the encounter's array part; give each encounter its id
 for _, id in ipairs(ORDER) do E[id].id = id end

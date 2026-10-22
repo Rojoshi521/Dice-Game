@@ -9,14 +9,18 @@ local gfx = require("gfx")
 local ui = require("ui")
 local sfx = require("sfx")
 local scene = require("scene")
+local art = require("art")
 local E = require("encounters")
 
 local lg = love.graphics
 local PAL = gfx.PAL
 
 local FIELD_X = 394
-local TITLE_Y, PANEL_X, PANEL_Y, PANEL_W = 56, 166, 72, 456
-local OPT_X, OPT_W, OPT_H, OPT_GAP = 196, 416, 28, 34
+local TITLE_Y, PANEL_Y = 56, 72
+-- the text panel and options span the field, or sit beside the portrait when someone is there
+local WIDE = {panelX = 166, panelW = 456, optX = 196, optW = 416}
+local BESIDE = {panelX = 304, panelW = 318, optX = 322, optW = 300, artX = 228, artFeet = 352, artH = 220}
+local OPT_H, OPT_GAP = 28, 34
 
 -- Traits that grow with the act, as the rivals do; the rest (mult, rerolls, prices) don't
 local SCALED = {block = true, atkFlat = true, winGold = true, winHeal = true, hitGold = true, rebuke = true,
@@ -37,7 +41,7 @@ local TRAIT_TEXT = {
 }
 
 local roleplay = {}
-local enc, chosen, lines, aligned, time, buttons, optY
+local enc, chosen, lines, aligned, time, buttons, optY, L
 
 -- What a favor or grudge does, in words
 function roleplay.describe(traits)
@@ -179,16 +183,17 @@ end
 
 -- The option buttons sit under the situation's text
 local function textHeight(text)
-    local _, wrapped = gfx.font.med:getWrap(text, PANEL_W - 20)
+    local _, wrapped = gfx.font.med:getWrap(text, L.panelW - 20)
     return #wrapped * gfx.font.med:getHeight()
 end
 
-local function optionBox(i) return {x = OPT_X, y = optY + (i - 1) * OPT_GAP, w = OPT_W, h = OPT_H} end
+local function optionBox(i) return {x = L.optX, y = optY + (i - 1) * OPT_GAP, w = L.optW, h = OPT_H} end
 
 function roleplay.enter()
     local node = run.node and run.node()
     local id = ENCOUNTER or (node and node.encounter) or E.order[math.random(#E.order)]   -- test runs: --encounter
     enc = E.list[id]
+    L = (enc.art and art.has(enc.art)) and BESIDE or WIDE
     chosen, lines, aligned, time = nil, {}, false, 0
     optY = PANEL_Y + textHeight(enc.text) + 34
     buttons = {go = {x = 12, y = 318, w = 132, h = 26, label = "ONWARD", color = PAL.blue}}
@@ -218,7 +223,7 @@ function roleplay.auto()
 end
 
 local function drawSidebar()
-    ui.sidebar("ENCOUNTER", place(), {0.45, 0.22, 0.35})
+    ui.sidebar("ENCOUNTER", enc.who or place(), {0.45, 0.22, 0.35})
     ui.gold(80)
     local o = run.outlook and data.OUTLOOKS[run.outlook]
     local x, w = ui.SB.x + 8, ui.SB.w - 16
@@ -236,12 +241,16 @@ end
 function roleplay.draw()
     ui.tip = nil
     drawSidebar()
-    gfx.fancy(enc.title, FIELD_X, TITLE_Y, "big", PAL.cream, 1, math.sin(time * 1.5) * 0.02, 1, time)
+    -- whoever the encounter is with stands to the left
+    if L.artX then art.draw(enc.art, L.artX, L.artFeet, L.artH) end
+    local cx = L.panelX + L.panelW / 2
+    gfx.fancy(enc.title, cx, TITLE_Y, "big", PAL.cream, math.min(1, L.panelW / gfx.font.big:getWidth(enc.title)),
+        math.sin(time * 1.5) * 0.02, 1, time)
 
     local text = chosen and enc[chosen].result or enc.text
     local h = textHeight(text)
-    gfx.panel(PANEL_X, PANEL_Y, PANEL_W, h + 20, {0.10, 0.08, 0.09, 0.88}, 8)
-    gfx.print(text, PANEL_X + 10, PANEL_Y + 10, "med", PAL.cream, "left", PANEL_W - 20)
+    gfx.panel(L.panelX, PANEL_Y, L.panelW, h + 20, {0.10, 0.08, 0.09, 0.88}, 8)
+    gfx.print(text, L.panelX + 10, PANEL_Y + 10, "med", PAL.cream, "left", L.panelW - 20)
 
     if not chosen then
         local mine = run.outlook and data.OUTLOOKS[run.outlook]
@@ -252,7 +261,7 @@ function roleplay.draw()
             if match then
                 lg.setColor(mine.color[1], mine.color[2], mine.color[3], 0.3 + 0.2 * math.sin(time * 5))
                 lg.rectangle("fill", b.x - 3, b.y - 3, b.w + 6, b.h + 6, 7)
-                gfx.icon(mine.icon, OPT_X - 16, b.y + b.h / 2, 16, mine.color)
+                gfx.icon(mine.icon, L.optX - 16, b.y + b.h / 2, 16, mine.color)
             end
             gfx.button(b, scene.mx, scene.my)
             if gfx.inside(b, scene.mx, scene.my) then
@@ -267,12 +276,12 @@ function roleplay.draw()
         if run.outlook then
             local o = data.OUTLOOKS[run.outlook]
             local head = aligned and ("TRUE TO YOUR OUTLOOK: " .. o.name:upper()) or "AGAINST YOUR NATURE"
-            gfx.fancy(head, FIELD_X, y + 6, "med", aligned and o.color or PAL.grey, 1, 0, 1, time)
+            gfx.fancy(head, L.panelX + L.panelW / 2, y + 6, "med", aligned and o.color or PAL.grey, 1, 0, 1, time)
             y = y + 24
         end
         for _, l in ipairs(lines) do
-            gfx.print(l[1], PANEL_X + 10, y, "small", l[2], "left", PANEL_W - 20)
-            local _, wrapped = gfx.font.small:getWrap(l[1], PANEL_W - 20)
+            gfx.print(l[1], L.panelX + 10, y, "small", l[2], "left", L.panelW - 20)
+            local _, wrapped = gfx.font.small:getWrap(l[1], L.panelW - 20)
             y = y + #wrapped * gfx.font.small:getHeight() + 4
         end
     end
