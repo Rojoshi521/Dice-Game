@@ -20,31 +20,54 @@ function sheet.available()
     return run.dice ~= nil and not CLOSED_IN[scene.name]
 end
 
--- One line of the kit: a label, the pick's name in its colour and what it does; returns the next y
-local function entry(label, def, x, y, w)
+-- How tall an entry is: a label, the name, then (unless compact) what it does
+local function entryHeight(def, w, compact)
+    if not def or compact or not def.perk then return compact and 27 or 32 end
+    local _, lines = gfx.font.small:getWrap(def.perk, w)
+    return 34 + #lines * gfx.font.small:getHeight()
+end
+
+-- One line of the kit: a label, the pick's name in its colour and what it does (compact: only on
+-- hover); returns the next y
+local function entry(label, def, x, y, w, compact)
     gfx.print(label, x, y, "small", PAL.grey)
     if not def then
         gfx.print("None", x, y + 11, "med", PAL.grey)
-        return y + 40
+        return y + entryHeight(def, w, compact)
     end
     gfx.print(def.name, x, y + 11, "med", def.color or PAL.cream, "left", w)
-    gfx.print(def.perk, x, y + 27, "small", PAL.cream, "left", w)
-    local _, lines = gfx.font.small:getWrap(def.perk, w)
-    return y + 34 + #lines * gfx.font.small:getHeight()
+    if compact then
+        if def.perk and scene.mx >= x and scene.mx <= x + w and scene.my >= y and scene.my < y + 27 then
+            ui.tip = {title = def.name, desc = def.perk, color = def.color}
+        end
+    elseif def.perk then
+        gfx.print(def.perk, x, y + 27, "small", PAL.cream, "left", w)
+    end
+    return y + entryHeight(def, w, compact)
 end
 
 local function drawKit(x, y, w)
-    y = entry("RACE", run.race and data.RACES[run.race], x, y, w)
-    y = entry("CLASS", run.class and data.CLASSES[run.class], x, y, w)
-    y = entry("BACKGROUND", run.backstory and data.BACKSTORIES[run.backstory], x, y, w)
-    if run.mode == "campaign" then y = entry("WEAPON", run.weapon and data.WEAPONS[run.weapon], x, y, w) end
-    for k, id in ipairs(run.prestige or {}) do y = entry(k == 1 and "PRESTIGE" or "PRESTIGE II", data.PRESTIGES[id], x, y, w) end
-    if run.outlook then
-        local o = data.OUTLOOKS[run.outlook]
-        gfx.print("OUTLOOK", x, y, "small", PAL.grey)
-        gfx.print(o.name, x, y + 11, "med", o.color, "left", w)
-        y = y + 32
+    local p = run.prestige or {}
+    local rows = {
+        {"RACE", run.race and data.RACES[run.race]},
+        {"CLASS", run.class and data.CLASSES[run.class]},
+        {"BACKGROUND", run.backstory and data.BACKSTORIES[run.backstory]},
+        run.mode == "campaign" and {"WEAPON", run.weapon and data.WEAPONS[run.weapon]} or nil,
+        p[1] and {"PRESTIGE", data.PRESTIGES[p[1]]} or nil,
+        p[2] and {"PRESTIGE II", data.PRESTIGES[p[2]]} or nil,
+        run.outlook and {"OUTLOOK", data.OUTLOOKS[run.outlook]} or nil,
+    }
+    -- room for the favors and the nerve line under the kit
+    local room = PANEL.y + PANEL.h - 24 - y - 14 - #(run.favors or {}) * 26
+    local total = 0
+    for k = 1, 7 do
+        if rows[k] then total = total + entryHeight(rows[k][2], w, false) end
     end
+    local compact = total > room
+    for k = 1, 7 do   -- not ipairs: missing picks leave gaps
+        if rows[k] then y = entry(rows[k][1], rows[k][2], x, y, w, compact) end
+    end
+    y = y + 2
     -- favors and grudges from this location's encounters
     for _, f in ipairs(run.favors or {}) do
         local text = f.name .. ": " .. require("roleplay").describe(f.traits)
@@ -53,6 +76,7 @@ local function drawKit(x, y, w)
         y = y + #lines * gfx.font.small:getHeight() + 4
     end
     gfx.print("NERVE " .. run.hp .. "/" .. run.maxHp .. "   GOLD " .. run.gold, x, y, "small", PAL.cream)
+    if compact then gfx.print("Hover a name to see what it does.", x, y + 13, "small", PAL.grey, "left", w) end
 end
 
 -- Each die's six faces; in a duel the spent ones are dimmed and the face it shows is outlined

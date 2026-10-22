@@ -108,6 +108,7 @@ function love.load(args)
         if a == "--backstory" then backstory = args[i + 1] end
         if a == "--outlook" then OUTLOOK = args[i + 1] end   -- test runs: the hero's outlook
         if a == "--tab" then LORE_TAB = tonumber(args[i + 1]) end   -- screenshots: the Lore Bible tab to open
+        if a == "--sheet" then sheet.open = true end   -- screenshots: open with the Tab sheet showing
         if a == "--encounter" then ENCOUNTER = args[i + 1] end   -- the encounter the roleplay scene opens with
         if a == "--weapon" then WEAPON = args[i + 1] end   -- also the only weapon autoplay is offered; "none" for bare hands
         if a == "--savefile" then SAVEFILE = args[i + 1] end   -- keeps parallel test runs' saves apart
