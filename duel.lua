@@ -971,6 +971,11 @@ local function rivalAttack(why)
         atk = atk + loc.rivalAtk
         say(loc.name .. ": " .. loc.rule, "+" .. loc.rivalAtk)
     end
+    local grudge = data.trait(run, "rivalAtk")   -- an encounter turned the locals against you
+    if atk > 0 and grudge > 0 then
+        atk = atk + grudge
+        say("Grudge", "+" .. grudge)
+    end
     -- a duel that drags on makes the rival impatient, so no one can stall forever
     if turn > data.STALL_TURN then
         local n = math.floor((turn - data.STALL_TURN) * rivalPower)
@@ -1397,7 +1402,7 @@ local function startPlayerTurn()
     startBlock, rerollsUsed = block, 0
     gambled, spareUsed, rerolled, weaken, luckyUsed = false, false, false, 0, 0
     rerolls = math.max(0, data.MAX_REROLLS + (run.hasCharm("bones") and 3 or 0) + (run.hasCharm("compass") and 1 or 0)
-        + (run.perks and run.perks.rerolls or 0) + (loc and loc.rerolls or 0))
+        + (run.perks and run.perks.rerolls or 0) + (loc and loc.rerolls or 0) + data.trait(run, "turnRerolls"))
     if run.hasCharm("pact") and run.hp > 1 then
         local cost = math.min(2, run.hp - 1)
         run.hp = run.hp - cost

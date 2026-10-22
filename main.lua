@@ -106,6 +106,8 @@ function love.load(args)
         if a == "--relics" then relics = args[i + 1] end   -- e.g. idol,pact,cup
         if a == "--race" then race = args[i + 1] end
         if a == "--backstory" then backstory = args[i + 1] end
+        if a == "--outlook" then OUTLOOK = args[i + 1] end   -- test runs: the hero's outlook
+        if a == "--encounter" then ENCOUNTER = args[i + 1] end   -- the encounter the roleplay scene opens with
         if a == "--weapon" then WEAPON = args[i + 1] end   -- also the only weapon autoplay is offered; "none" for bare hands
         if a == "--savefile" then SAVEFILE = args[i + 1] end   -- keeps parallel test runs' saves apart
         if a == "--oneduel" then ONE_DUEL = true end   -- autoplay quits after its first duel
@@ -177,6 +179,7 @@ function love.load(args)
             data.applyWeapon(WEAPON, run.dice, run)
         end
         if backstory and backstory ~= "none" then data.applyBackstory(backstory, run) end
+        run.outlook = OUTLOOK or run.outlook
         for id in (PRESTIGE or ""):gmatch("%a+") do
             run.prestige[#run.prestige + 1] = id
             data.applyPick(data.PRESTIGES[id], run)

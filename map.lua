@@ -151,6 +151,7 @@ local NODE_HELP = {
     hearth = "Rest, or sharpen a face.",
     shop = "Relics and drinks for sale.",
     mystery = "Who knows? A fight, a stranger, a hidden bazaar, or a test of luck.",
+    roleplay = "A situation, no dice. How you handle it should depend on your outlook.",
     boss = "The champion of the circuit.",
 }
 
@@ -158,6 +159,10 @@ local function nodeHelp(node)
     if node.rival then return data.RIVALS[node.rival].title .. (node.kind == "elite" and " (two trick dice)"
         or node.kind == "boss" and " (three trick dice)" or "") end
     if node.secret and (run.scout or data.trait(run, "reveal") > 0) then return "The scout says: " .. secretText(node.secret) end
+    if node.encounter then
+        local title = require("encounters").list[node.encounter].title
+        return title:sub(1, 1) .. title:sub(2):lower() .. ". " .. NODE_HELP.roleplay
+    end
     return NODE_HELP[node.kind]
 end
 
@@ -170,7 +175,10 @@ function map.draw()
     gfx.print("LEGEND", x + 10, 116, "small", PAL.grey)
     local y = 132
     local kinds = {"duel", "elite", "hearth", "shop", "boss"}
-    if campaign then table.insert(kinds, 5, "mystery") end
+    if campaign then
+        table.insert(kinds, 5, "mystery")
+        table.insert(kinds, 6, "roleplay")
+    end
     for _, kind in ipairs(kinds) do
         local t = data.NODE_TYPES[kind]
         gfx.icon(t.icon, x + 20, y + 6, 14, t.color)

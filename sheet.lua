@@ -39,6 +39,19 @@ local function drawKit(x, y, w)
     y = entry("BACKGROUND", run.backstory and data.BACKSTORIES[run.backstory], x, y, w)
     if run.mode == "campaign" then y = entry("WEAPON", run.weapon and data.WEAPONS[run.weapon], x, y, w) end
     for k, id in ipairs(run.prestige or {}) do y = entry(k == 1 and "PRESTIGE" or "PRESTIGE II", data.PRESTIGES[id], x, y, w) end
+    if run.outlook then
+        local o = data.OUTLOOKS[run.outlook]
+        gfx.print("OUTLOOK", x, y, "small", PAL.grey)
+        gfx.print(o.name, x, y + 11, "med", o.color, "left", w)
+        y = y + 32
+    end
+    -- favors and grudges from this location's encounters
+    for _, f in ipairs(run.favors or {}) do
+        local text = f.name .. ": " .. require("roleplay").describe(f.traits)
+        gfx.print(text, x, y, "small", f.good and PAL.green or PAL.red, "left", w)
+        local _, lines = gfx.font.small:getWrap(text, w)
+        y = y + #lines * gfx.font.small:getHeight() + 4
+    end
     gfx.print("NERVE " .. run.hp .. "/" .. run.maxHp .. "   GOLD " .. run.gold, x, y, "small", PAL.cream)
 end
 

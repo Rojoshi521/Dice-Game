@@ -22,9 +22,10 @@ local function rowType(r, cfg)
     if cfg.location then
         -- a campaign location: no elites until the one guarding its end
         local roll = math.random()
-        if roll < 0.44 then return "duel" end
-        if roll < 0.66 then return "mystery" end
-        if roll < 0.80 then return "shop" end
+        if roll < 0.40 then return "duel" end
+        if roll < 0.57 then return "mystery" end
+        if roll < 0.73 then return "roleplay" end
+        if roll < 0.86 then return "shop" end
         return "hearth"
     end
     if r == cfg.rows - 1 then return "hearth" end
@@ -63,6 +64,30 @@ local function mysteryFor(cfg, used)
     return {kind = "npc", npc = id}
 end
 
+-- An encounter for an encounter stop in location where: one of its own if any are left this run,
+-- otherwise one that can happen anywhere
+local function encounterFor(where, used)
+    local E = require("encounters")
+    local own, anywhere = {}, {}
+    for _, id in ipairs(E.order) do
+        local e = E.list[id]
+        if not used["rp:" .. id] then
+            if not e.where then
+                anywhere[#anywhere + 1] = id
+            else
+                for _, w in ipairs(e.where) do
+                    if w == where then own[#own + 1] = id end
+                end
+            end
+        end
+    end
+    local pool = #own > 0 and own or anywhere
+    if #pool == 0 then pool = E.order end   -- every one met already: repeats are fine
+    local id = pick(pool)
+    used["rp:" .. id] = true
+    return id
+end
+
 -- Rows run from 1 (bottom) to cfg.rows (the boss, or a location's elite). Edges never cross:
 -- node i links to the node at its proportional spot in the next row, sometimes
 -- to the one after it too, and any node left without a way in gets one.
@@ -83,6 +108,8 @@ local function generateMap(cfg)
                 node.rival = cfg.boss
             elseif kind == "mystery" then
                 node.secret = mysteryFor(cfg, used)
+            elseif kind == "roleplay" then
+                node.encounter = encounterFor(cfg.where, used)
             end
             rows[r][i] = node
         end
@@ -149,6 +176,8 @@ function run.new(mode)
     run.row, run.col, run.path = 0, nil, {}
     run.rival = "pip"
     run.race, run.class, run.backstory, run.weapon = nil, nil, nil, nil
+    run.outlook = nil        -- what your hero values; only matters at encounter stops
+    run.favors = {}          -- favors and grudges from this location's encounters, read by data.trait
     run.prestige = {}        -- the prestige classes earned by beating the acts' bosses, in order
     run.boons = {}           -- passives from Millbrook's gifts and market, read by data.trait
     run.bought = {}          -- how many of each of the market's goods this run bought
@@ -176,7 +205,8 @@ function run.enterLocation(id)
     run.visited[id] = true
     run.locIndex = run.locIndex + 1
     run.map = generateMap({rows = data.LOCATION_ROWS, pools = {region.duels, region.duels}, elites = region.elites,
-        location = true, used = run.used})
+        location = true, where = id, used = run.used})
+    run.favors = {}   -- an encounter's favor or grudge lasts only as long as its location
     run.row, run.col, run.path = 0, nil, {}
 end
 
@@ -185,6 +215,7 @@ end
 function run.enterLair(boss)
     boss = boss or pick(run.chapter().bosses)
     run.lair, run.location = boss, data.LAIRS[boss].bg
+    run.favors = {}
     run.map = {{{kind = "shop", next = {1}}, {kind = "hearth", next = {1}}}, {{kind = "boss", rival = boss, next = {}}}}
     run.row, run.col, run.path = 0, nil, {}
 end

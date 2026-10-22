@@ -692,6 +692,8 @@ function data.trait(run, key)
     -- and Millbrook's gifts and the market's goods for this run (run.boons)
     local boon = run.boons and run.boons[key]
     if boon then total = total + (boon == true and 1 or boon) end
+    -- and the favors and grudges earned at this location's encounters (roleplay.lua)
+    for _, favor in ipairs(run.favors or {}) do total = total + (favor.traits[key] or 0) end
     return total
 end
 
@@ -798,6 +800,34 @@ data.BACKSTORIES = {
 data.BACKSTORY_ORDER = {"acolyte", "artisan", "criminal", "spy", "cultist", "entertainer", "farmer", "folkhero",
     "gladiator", "hermit", "investigator", "merchant", "noble", "outlander", "sage", "soldier", "urchin", "sailor"}
 data.BACKGROUND_OFFERS = 5   -- backgrounds on offer each run
+
+-- Outlooks (run.outlook): what your hero values. No passive of its own; it only matters at encounter
+-- stops (roleplay.lua), where acting true to it earns a favor for the rest of the location and anything
+-- else pays off with a drawback.
+data.OUTLOOKS = {
+    protective = {name = "Protective", title = "Shields the weak", color = {0.45, 0.65, 0.95}, icon = "shield",
+        perk = "Stands between the helpless and whatever comes for them."},
+    merciful   = {name = "Merciful", title = "Spares and forgives", color = {0.55, 0.90, 0.60}, icon = "heal",
+        perk = "Heals what's hurt, forgives what's done, spares who can be spared."},
+    honorable  = {name = "Honorable", title = "Keeps their word", color = {0.85, 0.80, 0.65}, icon = "sword",
+        perk = "Plays fair, pays debts, keeps promises. Even the inconvenient ones."},
+    devout     = {name = "Devout", title = "Faithful to the gods", color = {0.98, 0.88, 0.50}, icon = "halo",
+        perk = "Honours the gods, the dead and the sacred, wherever they're found."},
+    curious    = {name = "Curious", title = "Has to know", color = {0.55, 0.85, 0.85}, icon = "eye",
+        perk = "Asks the question, opens the door, reads the runes. Always."},
+    rebellious = {name = "Rebellious", title = "Bows to no one", color = {0.95, 0.45, 0.35}, icon = "shatter",
+        perk = "Breaks rules, defies tyrants and does the opposite of what they're told."},
+    proud      = {name = "Proud", title = "Glory above all", color = {0.80, 0.55, 0.95}, icon = "crown",
+        perk = "Takes every challenge and backs down from none. Wants to be remembered."},
+    cunning    = {name = "Cunning", title = "Always an angle", color = {0.60, 0.50, 0.85}, icon = "dice",
+        perk = "Talks, tricks and schemes their way around every problem."},
+    greedy     = {name = "Greedy", title = "Gold first", color = {1.00, 0.78, 0.25}, icon = "coin",
+        perk = "If there's coin in it, they're in. If there isn't, why bother?"},
+    ruthless   = {name = "Ruthless", title = "No mercy, no regrets", color = {0.70, 0.20, 0.25}, icon = "skull",
+        perk = "Does whatever it takes, to whoever it takes, and sleeps fine."},
+}
+data.OUTLOOK_ORDER = {"protective", "merciful", "honorable", "devout", "curious", "rebellious", "proud", "cunning",
+    "greedy", "ruthless"}
 
 -- The gold each race, class and background brings to a run (added by data.applyPick), to spend at
 -- Millbrook's market before Act I and on the road after
@@ -1576,7 +1606,7 @@ for _, add in ipairs(data.TRICK_ADDS) do
 end
 data.LOCATION_ORDER = {"grassland", "hills", "forest", "swamp", "desert", "trail", "cave", "dungeon", "ruins",
     "graveyard", "village", "city", "tundra", "mountain"}
-data.LOCATION_ROWS = 5        -- per location: rows of stops, the last one its elite
+data.LOCATION_ROWS = 6        -- per location: rows of stops, the last one its elite
 data.LOCATION_CHOICES = 2     -- locations offered each time you choose where to go next
 data.LOCATION_RAMP = 0.18     -- each location after an act's first makes its rivals this much tougher
 
@@ -1754,6 +1784,7 @@ data.NODE_TYPES = {
     elite  = {name = "Elite",    icon = "skull", color = PURPLE},
     mystery = {name = "Mystery", icon = "?",     color = {0.55, 0.85, 0.85}},
     hearth = {name = "Hearth",   icon = "flame", color = {1.0, 0.55, 0.20}},
+    roleplay = {name = "Encounter", icon = "bubble", color = {0.95, 0.60, 0.80}},
     shop   = {name = "Peddler",  icon = "coin",  color = GOLD},
     boss   = {name = "Champion", icon = "crown", color = GOLD},
 }

@@ -1,5 +1,5 @@
 -- Before the run: pick a race, then a class (warrior, mage or rogue), in the campaign a weapon, then a
--- background, starting relic(s), draft your modifier die, then upgrade face(s)
+-- background, in the campaign an outlook, starting relic(s), draft your modifier die, then upgrade face(s)
 
 local data = require("data")
 local run = require("run")
@@ -23,24 +23,30 @@ local DRAFT_Y, DRAFT_GAP, SLOT_Y = 124, 124, 300
 local outfit = {}
 local step, chosenT, cardAnims, relics, relicsLeft, upgradesLeft, anims, buttons, time
 local drafted, draftOffers, rack, backgrounds, races
--- step: "race", "class", "weapon", "backstory", "relic", "draft", "upgrade", "done"
+-- step: "race", "class", "weapon", "backstory", "outlook", "relic", "draft", "upgrade", "done"
 
 local campaign = require("campaign")
 
-local function cardStep() return step == "race" or step == "class" or step == "weapon" or step == "backstory" end
+local function cardStep() return step == "race" or step == "class" or step == "weapon" or step == "backstory" or step == "outlook" end
 
 -- The cards on offer this step, and the table their ids look up in
 local function cardOrder()
     if step == "race" then return races, data.RACES end
     if step == "class" then return data.CLASS_ORDER, data.CLASSES end
     if step == "weapon" then return rack, data.WEAPONS end
+    if step == "outlook" then return data.OUTLOOK_ORDER, data.OUTLOOKS end
     return backgrounds, data.BACKSTORIES
 end
 
 -- Card i's centre x, top, width and height; cards narrow to fit when more are on offer (Crowded Square,
 -- Smithy Expansion)
 local FIELD_SPAN = 476
+local OUT_TOP, OUT_W, OUT_H, OUT_GAP, OUT_ROW = 84, 88, 112, 94, 120   -- the outlook cards, two rows of five
 local function cardBox(i)
+    if step == "outlook" then
+        local col, row = (i - 1) % 5 + 1, math.floor((i - 1) / 5)
+        return FIELD_X + (col - 3) * OUT_GAP, OUT_TOP + row * OUT_ROW, OUT_W, OUT_H
+    end
     if step == "backstory" then
         local gap = math.min(BG_GAP, FIELD_SPAN / #backgrounds)
         return FIELD_X + (i - (#backgrounds + 1) / 2) * gap, BG_TOP, math.min(BG_W, gap - 6), BG_H
@@ -150,12 +156,12 @@ local function startDraft()
 end
 
 -- Steps run in this order, skipping the ones this run hasn't earned
-local STEPS = {"race", "class", "weapon", "backstory", "relic", "draft", "upgrade", "done"}
+local STEPS = {"race", "class", "weapon", "backstory", "outlook", "relic", "draft", "upgrade", "done"}
 
 local function stepOn(s)
     local p = run.perks
     if s == "race" or s == "class" or s == "done" then return true end
-    if s == "weapon" then return run.mode == "campaign" end
+    if s == "weapon" or s == "outlook" then return run.mode == "campaign" end
     if s == "backstory" then return p.backstory end
     if s == "relic" then return p.relics > 0 end
     if s == "draft" then return p.draft end
@@ -180,7 +186,7 @@ local function goTo(s)
     end
     if s == "race" then dealRaces() end
     if s == "backstory" then dealBackgrounds() end
-    if s == "race" or s == "class" or s == "weapon" or s == "backstory" then
+    if s == "race" or s == "class" or s == "weapon" or s == "backstory" or s == "outlook" then
         step = s
         newCards()
     elseif s == "relic" then
@@ -237,6 +243,13 @@ local function pickBackstory(i)
     data.applyBackstory(backgrounds[i], run)
     resetAnims()
     pickCard(i, data.BACKSTORIES[run.backstory].color)
+    fx.timer(0.9, function() goTo("outlook") end)
+end
+
+local function pickOutlook(i)
+    if chosenT then return end
+    run.outlook = data.OUTLOOK_ORDER[i]
+    pickCard(i, data.OUTLOOKS[run.outlook].color)
     fx.timer(0.9, function() goTo("relic") end)
 end
 
@@ -301,7 +314,7 @@ function outfit.update(dt)
     time = time + dt
     if chosenT then chosenT = chosenT + dt end
     local order = cardOrder()
-    local chosen = ({race = run.race, class = run.class, weapon = run.weapon, backstory = run.backstory})[step]
+    local chosen = ({race = run.race, class = run.class, weapon = run.weapon, backstory = run.backstory, outlook = run.outlook})[step]
     for i, a in ipairs(cardAnims) do
         local lift = (not chosenT and overCard(i, scene.mx, scene.my)) and 6 or 0
         if chosenT and chosen == order[i] then lift = 10 end
@@ -334,7 +347,7 @@ function outfit.mousepressed(x, y)
         if step == "backstory" and not chosenT and run.perks.redraws > 0 and gfx.inside(buttons.go, x, y) then
             return redraw()
         end
-        local pick = ({race = pickRace, class = pickClass, weapon = pickWeapon, backstory = pickBackstory})[step]
+        local pick = ({race = pickRace, class = pickClass, weapon = pickWeapon, backstory = pickBackstory, outlook = pickOutlook})[step]
         for i in ipairs(cardOrder()) do
             if overCard(i, x, y) then return pick(i) end
         end
@@ -377,7 +390,7 @@ function outfit.auto()
             for k, id in ipairs(cardOrder()) do
                 if step == "class" and id == CLASS then i = k end
             end
-            local pick = ({race = pickRace, class = pickClass, weapon = pickWeapon, backstory = pickBackstory})[step]
+            local pick = ({race = pickRace, class = pickClass, weapon = pickWeapon, backstory = pickBackstory, outlook = pickOutlook})[step]
             pick(i)
         end
         return
@@ -437,7 +450,7 @@ local function beginCard(i)
 end
 
 local function cardState(i, id)
-    local picked = chosenT and (run.race == id or run.class == id or run.weapon == id or run.backstory == id)
+    local picked = chosenT and (run.race == id or run.class == id or run.weapon == id or run.backstory == id or run.outlook == id)
     local hot = not chosenT and overCard(i, scene.mx, scene.my)
     return picked, hot, picked and "smug" or (hot and "tell" or "idle")
 end
@@ -483,6 +496,28 @@ local function drawBackgroundCard(i)
     lg.setColor(1, 1, 1, 0.08)
     lg.rectangle("fill", x + 10, top + 124, w - 20, 1)
     gfx.print(b.perk, cx, top + 130, "small", PAL.cream, "center", w - 10)
+    dimUnpicked(x, top, w, h, picked)
+    lg.pop()
+end
+
+-- An outlook card: its sign, name and what it values
+local function drawOutlookCard(i)
+    local id = data.OUTLOOK_ORDER[i]
+    local o = data.OUTLOOKS[id]
+    if cardAnims[i].sc < 0.01 then return end
+    local picked, hot = cardState(i, id)
+    local cx, top, w, h = beginCard(i)
+    local x = cx - w / 2
+    cardGlow(x, top, w, h, o.color, hot or picked)
+    gfx.panel(x, top, w, h, PAL.dark, 6)
+    gfx.panel(x + 4, top + 4, w - 8, 40, {o.color[1] * 0.25, o.color[2] * 0.25, o.color[3] * 0.25}, 5)
+    gfx.icon(o.icon, cx, top + 24 + (hot and math.sin(time * 6) * 1.5 or 0), 24, o.color)
+    local name = o.name:upper()
+    gfx.fancy(name, cx, top + 58, "med", o.color, math.min(1, (w - 8) / gfx.font.med:getWidth(name)),
+        hot and math.sin(time * 3) * 0.04 or 0, 1, time)
+    lg.setColor(1, 1, 1, 0.08)
+    lg.rectangle("fill", x + 10, top + 72, w - 20, 1)
+    gfx.print(o.title, cx, top + 78, "small", PAL.cream, "center", w - 10)
     dimUnpicked(x, top, w, h, picked)
     lg.pop()
 end
@@ -533,8 +568,8 @@ local function drawHoverNotes()
     end
     if not hovered or chosenT then return end
     local x, w = ui.SB.x + 8, ui.SB.w - 16
-    if step == "race" or step == "backstory" then
-        local r = (step == "race" and data.RACES or data.BACKSTORIES)[hovered]
+    if step == "race" or step == "backstory" or step == "outlook" then
+        local r = ({race = data.RACES, backstory = data.BACKSTORIES, outlook = data.OUTLOOKS})[step][hovered]
         gfx.print(r.name:upper(), x, 190, "med", r.color, "left", w)
         gfx.print(r.title, x, 206, "small", PAL.grey, "left", w)
         gfx.print(r.perk, x, 222, "small", PAL.cream, "left", w)
@@ -606,8 +641,9 @@ function outfit.draw()
     local cl = run.class and data.CLASSES[run.class]
     local wp = run.weapon and data.WEAPONS[run.weapon]
     local b = run.backstory and data.BACKSTORIES[run.backstory]
+    local ol = run.outlook and data.OUTLOOKS[run.outlook]
     local names = {}
-    for _, def in ipairs({r, cl, wp, b}) do
+    for _, def in ipairs({r, cl, wp, b, ol}) do
         if def then names[#names + 1] = def.name end
     end
     ui.sidebar("NEW RUN", #names > 0 and table.concat(names, ", ") or "Choose your race", {0.55, 0.38, 0.10})
@@ -620,16 +656,19 @@ function outfit.draw()
             class = "Pick a calling. It sets\nyour modifier die and\nthe faces you'll find.",
             weapon = "Arm yourself.",
             backstory = "And where did\nthey come from?",
+            outlook = "What do they value?\nIt only matters at\nencounter stops.",
         })[step]
         gfx.print(prompt, ui.SB.x + ui.SB.w / 2, 130, "small", PAL.grey, "center", ui.SB.w)
-        local def = ({race = r, class = cl, weapon = wp, backstory = b})[step]
+        local def = ({race = r, class = cl, weapon = wp, backstory = b, outlook = ol})[step]
         local title = ({race = "CHOOSE YOUR RACE", class = "CHOOSE YOUR CLASS", weapon = "CHOOSE A WEAPON",
-            backstory = "CHOOSE A BACKGROUND"})[step]
+            backstory = "CHOOSE A BACKGROUND", outlook = "CHOOSE AN OUTLOOK"})[step]
         if chosenT and def then title = def.name:upper() .. "!" end
         gfx.fancy(title, FIELD_X, 50, "big", (chosenT and def) and def.color or PAL.cream,
             1 + (chosenT and 0.1 or 0), math.sin(time * 1.5) * 0.02, 1, time)
         for i in ipairs(cardOrder()) do
-            if step == "backstory" then drawBackgroundCard(i) else drawCard(i) end
+            if step == "backstory" then drawBackgroundCard(i)
+            elseif step == "outlook" then drawOutlookCard(i)
+            else drawCard(i) end
         end
         drawHoverNotes()
         if step == "weapon" and not chosenT then
